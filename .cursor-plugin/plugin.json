@@ -1,0 +1,10 @@
+{
+  "name": "kmd",
+  "version": "0.1.0",
+  "description": "Knowledge-base operator: kmd-ingest write protocol and kmd-lint health checks as skills, operator/librarian/intake subagents, and a PreToolUse guard enforcing KB invariants (generated INDEX.md, append-only LOG.md and sources/) for markdown knowledge bases.",
+  "author": "yasik",
+  "keywords": ["knowledge-base", "obsidian", "wiki", "memory"],
+  "skills": "./skills",
+  "agents": "./agents",
+  "hooks": "./hooks/cursor-hooks.json"
+}

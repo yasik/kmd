@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "command": "python3 ./hooks/scripts/kb_guard.py",
+        "timeout": 15,
+        "failClosed": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "kmd",
+  "description": "kmd — Knowledge MarkDown: operate a markdown knowledge base with your coding agent. qmd queries it; kmd keeps it.",
+  "owner": {
+    "name": "yasik"
+  },
+  "plugins": [
+    {
+      "name": "kmd",
+      "source": "./",
+      "description": "kmd-ingest write protocol and kmd-lint health checks as skills, operator/librarian/intake agents, and hooks enforcing KB invariants in markdown knowledge bases."
+    }
+  ]
+}
