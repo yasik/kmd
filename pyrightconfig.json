@@ -2,7 +2,8 @@
   "include": [
     "skills/kmd-ingest/scripts",
     "skills/kmd-lint/scripts",
-    "hooks/scripts"
+    "hooks/scripts",
+    "scripts"
   ],
   "venvPath": ".",
   "venv": ".venv",
@@ -15,13 +16,28 @@
   "reportUnusedFunction": true,
   "reportUnusedVariable": true,
   "reportDuplicateImport": true,
-  "exclude": ["**/__pycache__", "**/.pytest_cache", ".venv", "venv", "kb-skills-workspace"],
+  "exclude": [
+    "**/__pycache__",
+    "**/.pytest_cache",
+    ".venv",
+    "venv",
+    "kb-skills-workspace"
+  ],
   "executionEnvironments": [
-    { "root": "skills/kmd-ingest/scripts" },
-    { "root": "skills/kmd-lint/scripts" },
+    {
+      "root": "skills/kmd-ingest/scripts"
+    },
+    {
+      "root": "skills/kmd-lint/scripts"
+    },
     {
       "root": "hooks/scripts",
-      "extraPaths": ["skills/kmd-ingest/scripts"]
+      "extraPaths": [
+        "skills/kmd-ingest/scripts"
+      ]
+    },
+    {
+      "root": "scripts"
     }
   ]
 }

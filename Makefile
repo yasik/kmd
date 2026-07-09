@@ -1,12 +1,12 @@
 .PHONY: init sync sync-upgrade
 .PHONY: format format-python format-ts
 .PHONY: lint lint-python lint-static lint-ts
-.PHONY: mypy pyright typecheck tests tree
+.PHONY: mypy pyright typecheck tests tree bump-version check-version
 
 # The installer is the only JS package; skill/hook scripts are loose Python
 # files, dependency-free by design (tooling lives in the uv dev group only).
 INSTALLER_DIR := installer
-PY_DIRS := skills/kmd-ingest/scripts skills/kmd-lint/scripts hooks/scripts
+PY_DIRS := skills/kmd-ingest/scripts skills/kmd-lint/scripts hooks/scripts scripts
 
 init:
 	$(MAKE) sync
@@ -39,9 +39,10 @@ lint-python:
 
 lint-static:
 	uv run yamllint -c .yamllint.yaml .
+	uv run python scripts/bump_version.py --check
 	@if command -v markdownlint >/dev/null 2>&1; then \
 		markdownlint "**/*.md" --config .markdownlint.yaml \
-			--ignore kb-skills-workspace --ignore "**/node_modules/**" --ignore .venv; \
+			--ignore fixtures --ignore "**/node_modules/**" --ignore .venv; \
 	else \
 		echo "markdownlint not installed; skipping markdown lint (npm i -g markdownlint-cli)"; \
 	fi
@@ -56,10 +57,21 @@ lint-ts:
 mypy:
 	uv run mypy skills/kmd-ingest/scripts
 	uv run mypy skills/kmd-lint/scripts
+	uv run mypy scripts
 	MYPYPATH=skills/kmd-ingest/scripts uv run mypy hooks/scripts
 
 pyright:
 	uv run pyright --project pyrightconfig.json
+
+# The version is duplicated across plugin manifests, SKILL frontmatters, and
+# the README badge by necessity; this keeps them in lockstep (and `make lint`
+# fails on drift via check-version).
+bump-version:
+	@test -n "$(VERSION)" || { echo "usage: make bump-version VERSION=x.y.z"; exit 1; }
+	uv run python scripts/bump_version.py $(VERSION)
+
+check-version:
+	uv run python scripts/bump_version.py --check
 
 typecheck:
 	@set -eu; \

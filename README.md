@@ -340,6 +340,27 @@ What it changes — defined in `references/org-extension.md` inside each skill:
 The ingest discipline itself is identical in both modes — the extension
 changes routing, never the protocol.
 
+## Development
+
+Code consistency across Python, JS, and markdown is enforced by the Makefile
+harness (conventions in [docs/code-style](docs/code-style/README.md)):
+
+```bash
+make init                        # uv sync (python dev tools) + bun install (installer)
+make format                      # isort + black (python), biome (js)
+make lint                        # isort/black --check, ruff, pyright, biome,
+                                 #   yamllint, markdownlint, version-drift check
+make typecheck                   # mypy + pyright in parallel (both strict)
+make bump-version VERSION=x.y.z # set the version everywhere it lives
+```
+
+The version is duplicated across the four plugin manifests, the Grok
+marketplace entry, the installer's package.json, both SKILL.md frontmatters,
+and the README badge — `make bump-version` keeps all nine in lockstep
+(format-preserving), and `make check-version` (part of `make lint`) fails on
+drift. Requires [uv](https://docs.astral.sh/uv/) and [bun](https://bun.sh);
+`markdownlint` is optional (`npm i -g markdownlint-cli`).
+
 ## Requirements
 
 Python 3.12+ on PATH as `python3` (per this repo's
