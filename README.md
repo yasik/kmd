@@ -1,247 +1,240 @@
-# kmd — Knowledge MarkDown
+# kmd — Knowledge Markdown
 
 [![npm](https://img.shields.io/npm/v/create-kmd)](https://www.npmjs.com/package/create-kmd)
 ![agents](https://img.shields.io/badge/agents-Claude_Code_%C2%B7_Codex_%C2%B7_Cursor_%C2%B7_Grok_%C2%B7_Amp_%C2%B7_opencode_%C2%B7_pi_%C2%B7_Hermes-blueviolet)
 ![skills](https://img.shields.io/badge/Agent_Skills-open_standard-orange)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
-Operate a markdown knowledge base (Obsidian-compatible, the
-[LLM-wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f))
-with your coding agent: disciplined writes, scheduled health checks, and
-tool-level enforcement of the KB's invariants. Works with Claude Code,
-OpenAI Codex, Cursor, and every harness that reads the
-[Agent Skills standard](https://agentskills.io).
+A knowledge base in plain markdown, kept by your coding agent. You drop in
+articles, papers, meeting notes, whatever — the agent turns them into small,
+linked pages that say where every fact came from, and checks the whole thing
+regularly so it stays trustworthy. Works with Obsidian, and with any agent
+that reads the [Agent Skills standard](https://agentskills.io). The approach
+follows Karpathy's
+[LLM-wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 
-The natural companion to [qmd](https://github.com/tobi/qmd) (Query MarkDown):
-**qmd queries your markdown; kmd keeps it** — ingested with provenance,
-cross-referenced, contradiction-checked, and append-only where it matters.
+It's the companion to [qmd](https://github.com/tobi/qmd): **qmd searches
+your markdown, kmd keeps it.**
 
-Out of the box this is a **personal knowledge base** operator: you (and your
-agent) ingest sources, grow interlinked pages, and keep the KB healthy.
-Domain-specific behaviors — like running the KB inside an autonomous agent
-organization — are opt-in [extensions](#extensions), not part of the core.
+Built for personal knowledge bases first. If you're running a team of agents
+that share one KB, there's an [extension](#extensions) for that.
 
-## What's inside
+## How it works
 
-| Component | | |
-|---|---|---|
-| **Skills** | `kmd-ingest` | The write protocol — every KB write (new source, promoted artifact, learning, one-line fix) follows one checklist: classify → file raw material → dedup → condense → sweep → validate → log. Bundles `validate_page.py` + `kb_log.py`. |
-| | `kmd-lint` | Health check — deterministic script (7 checks) + LLM judgment passes (contradictions, staleness, duplicates) + triage into direct fixes and open items. Bundles `lint_mechanical.py`. |
-| **Agents** | `kmd-operator` | The KB interface: answers questions from the KB with citations, performs writes via kmd-ingest. Delegate any KB read/write to it. |
-| | `kmd-librarian` | Hygiene: runs the full lint protocol, fixes mechanical issues, records judgment calls as actionable open items. |
-| | `kmd-intake` | Drains the un-ingested sources queue: distills raw material you drop into `sources/` into pages. |
-| **Hooks** | `kb_guard.py` (PreToolUse) | **Denies** hand-edits to the KB's `INDEX.md` (script-generated), `LOG.md` (append-only via script), `SCHEMA.md` modifications (owner-controlled), and edits to existing `sources/` files (append-only evidence; filing new sources stays allowed). |
-| | `kb_post_write.py` (PostToolUse) | Validates every KB page write immediately — errors come back as blocking feedback; valid writes get a one-line reminder (sweep + log). |
+Your KB is a folder of markdown files with a few simple rules:
 
-The hooks are the enforcement tier of the protocol: skill + validation
-scripts + lint remain the convention layer, hooks make the invariants hard.
-Bash-level writes are deliberately not intercepted — lint is the backstop.
+- **`sources/`** holds raw material exactly as it arrived. Nothing in here
+  is ever edited — it's what pages point back to when you want to check a
+  claim.
+- **Pages** live next to it (`concepts/`, `entities/`, `projects/`, …).
+  Each page condenses what the sources say, links to related pages, and
+  lists its sources in frontmatter. Filenames are the titles — Obsidian
+  shows them everywhere — so a page is called
+  `GPU memory math for LLMs.md`, not `gpu-memory-math-for-llms.md`.
+- **`INDEX.md`** lists every page with a one-liner (a script generates it),
+  **`LOG.md`** records every change, and **`SCHEMA.md`** spells out the
+  rules for your particular KB.
 
-## Quick start (personal KB)
+Two skills teach any agent to work this way:
 
-**Fastest path — the interactive installer.** Scaffolds the KB, initializes
-git, installs the plugin into detected CLIs, and wires up qmd search, with
-sensible defaults at every step:
+- **kmd-ingest** — how to write. Check whether a page already exists before
+  making a new one, condense instead of copy, link related pages, cite
+  sources, log the change, refresh the index. Ships with small scripts that
+  validate each page and keep the log format consistent.
+- **kmd-lint** — how to check. A script catches the mechanical problems
+  (broken links, missing fields, sources no page cites, a stale index),
+  then the agent reads for what a script can't see: pages that contradict
+  each other, claims that have gone stale, near-duplicates worth merging.
+
+Three ready-made agents use them:
+
+- **kmd-operator** — ask it questions, it answers from the KB with
+  citations; ask it to save something, it does the full ingest.
+- **kmd-intake** — turns whatever you dropped into `sources/` into pages.
+- **kmd-librarian** — the periodic check-up. Fixes what's safe to fix,
+  writes up the rest.
+
+Two small hooks keep agents honest: one blocks edits to files nobody should
+hand-edit (`INDEX.md`, `LOG.md`, existing sources), the other checks every
+page right after it's written and sends any problems straight back to the
+agent. Shell-level writes aren't intercepted on purpose — catching those is
+lint's job.
+
+## Quick start
 
 ```bash
-npx create-kmd            # or point it at a dir / Obsidian vault
+npx create-kmd
 ```
 
-**Manual paths** below, if you prefer to see every move.
+walks you through everything: creates the KB (in a new folder or inside your
+Obsidian vault), sets up git, installs the plugin into whichever agent CLIs
+it finds, and wires up qmd search. Sensible defaults, every step skippable,
+safe to re-run.
 
-**Option A — your own base folder** (any directory name works):
+Or by hand:
 
 ```bash
+# a new folder
 mkdir -p ~/notes/knowledge/sources
 cp skills/kmd-ingest/references/schema-template.md ~/notes/knowledge/SCHEMA.md
-printf '{"root": "knowledge"}\n' > ~/notes/.kmd.json   # optional if the dir is named kb/
-```
+printf '{"root": "knowledge"}\n' > ~/notes/.kmd.json   # only needed when the folder isn't named kb/
 
-**Option B — inside an Obsidian vault** (the KB is a folder in the vault;
-the rest of the vault — daily notes, attachments — stays outside the
-protocol, and `[[wikilinks]]` between the KB and the rest of the vault
-resolve both ways):
-
-```bash
+# or inside an obsidian vault — the KB is just a folder in it
 VAULT=~/Obsidian/MyVault
 mkdir -p "$VAULT/kb/sources"
 cp skills/kmd-ingest/references/schema-template.md "$VAULT/kb/SCHEMA.md"
-# no .kmd.json needed — kb/ is the default; add one only to rename the folder
 ```
 
-`.obsidian/` and other dot-directories are ignored by validation, lint, and
-link indexing. To treat the *entire* vault as the KB instead, place
-`SCHEMA.md` at the vault root — a KB root is wherever that file lives. Do
-that only if you want every note held to the page schema: in whole-vault
-mode, daily notes and scratch files count as pages and lint will flag them.
-The folder-in-vault layout is the right default.
+The rest of your vault stays out of it: daily notes and attachments are
+untouched, `.obsidian/` and other dot-folders are ignored, and wikilinks
+between KB pages and the rest of the vault work both ways. You *can* make
+the whole vault the KB by putting `SCHEMA.md` at the vault root — but then
+every scratch note is held to the page rules and lint will complain about
+them, so the folder-in-vault setup is the right default.
 
-Then install the plugin (see Install below) and, in a session:
+Then, in a session:
 
 ```text
-- drop raw material into <kb>/sources/
-- "ingest the new sources"        -> kmd-intake / kmd-ingest take over
-- "what do we know about X?"      -> kmd answers with citations
-- "run a KB health check"         -> kmd-librarian runs kmd-lint
+drop raw material into <kb>/sources/
+"ingest the new sources"        → kmd-intake turns them into pages
+"what do we know about X?"      → kmd-operator answers with citations
+"run a KB health check"         → kmd-librarian does a full pass
 ```
 
-## KB discovery and configuration
+## Where kmd looks for your KB
 
-Nothing is bound to a fixed path. A **KB root** is any directory containing
-`SCHEMA.md` or `LOG.md`; scripts and hooks resolve it in this order:
+Nothing is tied to a fixed path. Scripts and hooks find the KB in this
+order: an explicit `--kb <path>`, the `$KMD_ROOT` env var, or walking up
+from the current directory until they hit a `.kmd.json`, a folder containing
+`SCHEMA.md`/`LOG.md`, or a `kb/` folder.
 
-1. explicit `--kb <path>`
-2. `$KMD_ROOT`
-3. walking up from cwd for a `.kmd.json`, a KB root, or a `kb/` child
-   (the default layout)
-
-Optional `.kmd.json` at the workspace root:
+The optional `.kmd.json` sits in the folder above your KB:
 
 ```json
 {
-  "root": "knowledge",        // KB dir relative to this file (default "kb")
-  "report_dir": ".lint"       // lint reports, relative to the KB root
+  "root": "knowledge",        // KB folder name (default "kb")
+  "report_dir": ".lint"       // where lint reports go, relative to the KB
 }
 ```
 
-`INDEX.md` — the routing layer agents search before reading pages — is
-generated by `recompile_index.py` (ships with the kmd-ingest skill; runs as
-the last step of every ingest). It is script-owned: the guard hook denies
-hand-edits, and lint flags a missing or stale index. Page filenames are
-titles (Obsidian displays them everywhere), so pages use natural language —
-`GPU memory math for LLMs.md`, not kebab slugs.
+`INDEX.md` is regenerated by `recompile_index.py` (ships with kmd-ingest,
+runs as the last step of every ingest). Nobody edits it by hand — the guard
+hook blocks that, and lint flags it when it's missing or out of date.
 
 ## Install — Claude Code
-
-From the marketplace in this repo:
 
 ```bash
 claude plugin marketplace add yasik/kmd
 claude plugin install kmd@kmd
 ```
 
-Or for local development / trying it out:
+Or to try it from a local clone:
 
 ```bash
 claude --plugin-dir path/to/kmd
 ```
 
-Skills appear as `/kmd:kmd-ingest` and `/kmd:kmd-lint`; agents
-as `kmd:kmd-operator`, `kmd:kmd-librarian`,
-`kmd:kmd-intake` (delegated automatically or @-mentioned).
+Skills show up as `/kmd:kmd-ingest` and `/kmd:kmd-lint`; the agents as
+`kmd:kmd-operator`, `kmd:kmd-librarian`, and `kmd:kmd-intake` — used
+automatically, or @-mention them.
 
 ## Install — OpenAI Codex
-
-The manifest at `.codex-plugin/plugin.json` bundles the skills and the
-PreToolUse guard hook:
 
 ```bash
 codex plugin marketplace add yasik/kmd   # or: add ./ from a local clone
 ```
 
-Codex plugins cannot bundle agents yet — copy the TOML definitions:
+Codex plugins can't bundle agents yet, so copy the definitions over:
 
 ```bash
 cp codex/agents/*.toml ~/.codex/agents/      # personal
-# or <repo>/.codex/agents/ for project scope
+# or <repo>/.codex/agents/ for one project
 ```
 
-Codex caveats: the guard hook parses Codex
-`apply_patch` payloads best-effort (`*** Update File:` / `*** Add File:`
-markers); the PostToolUse validator is Claude-only for now; project hooks
-require `.codex/` trust.
+A few Codex specifics: the guard hook reads Codex's `apply_patch` format on
+a best-effort basis, the after-write validator is Claude-only for now, and
+project hooks only load once you've trusted the `.codex/` directory.
 
-## Other harnesses — Cursor, Amp, opencode, pi, Hermes, Grok
+## Other agents — Cursor, Amp, opencode, pi, Hermes, Grok
 
-The skills are the portable core: all major harnesses read the
-[Agent Skills standard](https://agentskills.io), so kmd-ingest and kmd-lint
-work everywhere. Enforcement hooks and bundled agents vary by harness:
+The two skills work in any harness that reads the Agent Skills standard.
+The extras — bundled agents, the guard hook, qmd over MCP — vary:
 
 | | Skills | Agents | Guard hook | qmd via MCP |
 |---|---|---|---|---|
 | **Cursor** | ✓ plugin / `.agents/skills/` | ✓ (bundled, same format) | ✓ bundled (`preToolUse`) | ✓ `~/.cursor/mcp.json` |
 | **Amp** | ✓ `.agents/skills/` | ✗ (code-only subagents) | plugin adapter below | ✓ `amp.mcpServers` |
 | **opencode** | ✓ `.agents/skills/` | ✓ `.opencode/agents/` (copy from `agents/`) | plugin adapter below, or `permission` config | ✓ `opencode.json` `mcp` |
-| **pi** | ✓ `.agents/skills/` | ✗ (no subagents, by design) | extension adapter below | ✗ — agents call the `qmd` CLI directly |
-| **Hermes** | ✓ `~/.hermes/skills/` | ✗ (delegation only) | ✓ shell hook (guard speaks its dialect) | ✓ `config.yaml` `mcp_servers` |
-| **Grok** | ✓ plugin (`.grok-plugin/` manifest in this repo) | ✗ | ✗ | — |
+| **pi** | ✓ `.agents/skills/` | ✗ (no subagents, by design) | extension adapter below | ✗ — agents run the `qmd` CLI directly |
+| **Hermes** | ✓ `~/.hermes/skills/` | ✗ (delegation only) | ✓ shell hook, works as-is | ✓ `config.yaml` `mcp_servers` |
+| **Grok** | ✓ plugin (`.grok-plugin/` in this repo) | ✗ | ✗ | — |
 
-A `.skillignore` at the repo root keeps skill installers focused on the two
-runtime skills — plugin plumbing, the dev harness, and local artifacts are
-excluded from skill bundles.
+(A `.skillignore` at the repo root keeps skill installers to just the two
+skills — they won't drag in the dev tooling or plugin files.)
 
-**Installing the skills.** The installer detects these harnesses and runs the
-[`npx skills`](https://github.com/vercel-labs/skills) CLI for you; manually:
+The installer detects these and installs the skills for you; by hand it's
+the [`npx skills`](https://github.com/vercel-labs/skills) CLI:
 
 ```bash
 npx skills add yasik/kmd --skill kmd-ingest --skill kmd-lint -a cursor -g
 # -a values: cursor · amp · opencode · pi · hermes-agent
 ```
 
-Cursor additionally loads the full plugin (skills + the three agents + the
-guard hook) via its own manifest in this repo: install from the
-[Cursor Marketplace] once published, or symlink the plugin directory into
-`~/.cursor/plugins/local/kmd`. Hermes note: skills need `name`,
-`description`, and `version` frontmatter — all present here.
+Cursor gets the full plugin (skills, agents, and the guard hook) through its
+own manifest in this repo — install it from the Cursor Marketplace once
+published, or symlink the repo into `~/.cursor/plugins/local/kmd`.
 
-**The guard hook per harness.** `kb_guard.py` reads the same stdin JSON
-everywhere and answers in the caller's dialect (Claude/Codex
-`hookSpecificOutput`, Cursor `permission: deny`, Hermes `decision: block`).
+**The guard hook elsewhere.** `kb_guard.py` reads the same JSON everywhere
+and answers in whichever format the calling harness expects (Claude/Codex,
+Cursor, or Hermes). For Hermes it works as a plain shell hook:
 
-- *Hermes* — `~/.hermes/config.yaml`:
+```yaml
+# ~/.hermes/config.yaml
+hooks:
+  pre_tool_call:
+    - command: "python3 <plugin>/hooks/scripts/kb_guard.py"
+```
 
-  ```yaml
-  hooks:
-    pre_tool_call:
-      - command: "python3 <plugin>/hooks/scripts/kb_guard.py"
-  ```
+opencode can get most of the protection with no code at all — its
+`permission` config can deny edits by path pattern. For the full guard,
+a small plugin (untested; `.opencode/plugins/kb-guard.js`):
 
-- *opencode* — no config-file hook needed for basics: `permission` rules can
-  deny edits by path pattern. For the full guard, a plugin adapter
-  (untested; `.opencode/plugins/kb-guard.js`):
+```js
+export default async ({ $ }) => ({
+  "tool.execute.before": async (input, output) => {
+    const payload = JSON.stringify({ tool_name: input.tool, tool_input: output.args });
+    const res = await $`python3 <plugin>/hooks/scripts/kb_guard.py < ${new Response(payload)}`.text();
+    const verdict = res.trim() && JSON.parse(res);
+    if (verdict?.hookSpecificOutput?.permissionDecision === "deny")
+      throw new Error(verdict.hookSpecificOutput.permissionDecisionReason);
+  },
+});
+```
 
-  ```js
-  export default async ({ $ }) => ({
-    "tool.execute.before": async (input, output) => {
-      const payload = JSON.stringify({ tool_name: input.tool, tool_input: output.args });
-      const res = await $`python3 <plugin>/hooks/scripts/kb_guard.py < ${new Response(payload)}`.text();
-      const verdict = res.trim() && JSON.parse(res);
-      if (verdict?.hookSpecificOutput?.permissionDecision === "deny")
-        throw new Error(verdict.hookSpecificOutput.permissionDecisionReason);
-    },
-  });
-  ```
+Amp and pi need similar small adapters (also untested): Amp via a TypeScript
+plugin's `tool.call` event returning `{ action: "reject-and-continue",
+message }`, pi via a `~/.pi/agent/extensions/kb-guard.ts` extension
+returning `{ block: true, reason }`.
 
-- *Amp* — same shape via a TypeScript plugin's `tool.call` event returning
-  `{ action: "reject-and-continue", message }` (untested adapter; see
-  ampcode.com/manual/plugin-api).
-- *pi* — a `~/.pi/agent/extensions/kb-guard.ts` extension on the `tool_call`
-  event returning `{ block: true, reason }` (untested adapter; see pi's
-  extensions.md).
-
-Where no adapter is installed, the protocol still holds — validation scripts
-and lint remain the backstop, exactly as designed.
+No adapter installed? Everything still works — the validation scripts and
+lint catch what the hook would have blocked, just after the fact instead of
+before.
 
 ## Search — wiring up qmd
 
-The protocol's dedup gate and query routing assume the KB is searchable.
-Everything works without a search backend — agents fall back to `INDEX.md` +
-grep — but real retrieval quality comes from
-[qmd](https://github.com/tobi/qmd): local-first hybrid search (BM25 +
-vectors + reranking, fully on-device) whose MCP server gives agents
-`query` / `get` / `multi_get` / `status` tools.
+Agents can get by with `INDEX.md` and grep, but real search is much better.
+[qmd](https://github.com/tobi/qmd) runs entirely on your machine — keyword
+and semantic search with reranking — and exposes `query` / `get` /
+`multi_get` / `status` tools over MCP.
 
-**Automatic** — `npx create-kmd` (the Quick start installer) does
-all of the below interactively.
-
-**Manual** — five commands:
+`npx create-kmd` sets all of this up interactively. By hand:
 
 ```bash
 npm install -g @tobilu/qmd                  # or: bun install -g @tobilu/qmd
 
 qmd collection add <kb-root> --name mykb    # index the KB
 qmd context add qmd://mykb "Knowledge base: entities, concepts, projects, decisions, reports, and raw sources"
-qmd update                                  # build the BM25 index (fast, no models)
+qmd update                                  # keyword index — fast, no models
 qmd embed                                   # optional: semantic search — downloads ~2GB of local models
 
 claude mcp add --scope user qmd -- qmd mcp  # expose the tools to Claude Code
@@ -255,64 +248,59 @@ command = "qmd"
 args = ["mcp"]
 ```
 
-How the pieces get used: `qmd search` (BM25-only, instant) covers the
-ingest dedup gate and quick lookups; `qmd query` (hybrid + rerank) is for
-judgment-heavy retrieval; `get`/`multi_get` do bounded line-range reads.
-The context line matters — qmd feeds it to the reranker. Keep the index
-fresh alongside the hygiene jobs below: `qmd update && qmd embed`.
+In practice: `qmd search` (keyword, instant) covers the "does a page on this
+already exist?" check and quick lookups; `qmd query` (semantic + reranking)
+is for the harder questions. The context line above isn't decoration — qmd
+feeds it to the reranker, and it noticeably improves results. Keep the index
+fresh with `qmd update && qmd embed` alongside the scheduled jobs below.
 
-## Orchestration — running the KB on a schedule
+## Running it on a schedule
 
-The KB stays healthy because hygiene is *scheduled*, not remembered. A
-sensible default cadence:
+The KB stays healthy because check-ups are scheduled, not remembered:
 
 | Job | Agent | Cadence |
 |---|---|---|
-| Drain new sources into pages | `kmd-intake` | daily, or after you drop material |
+| Turn new sources into pages | `kmd-intake` | daily, or after you drop material |
 | Full health check + report | `kmd-librarian` | weekly |
-| Reindex search | `qmd update && qmd embed` | with each of the above |
-| Recompile `INDEX.md` | `recompile_index.py` (kmd-ingest) | with each of the above |
+| Refresh search index | `qmd update && qmd embed` | with each of the above |
+| Regenerate `INDEX.md` | `recompile_index.py` (kmd-ingest) | with each of the above |
 
-**Claude Code — native scheduling.** Use `/schedule` in a session to create a
-recurring routine (a cloud agent on a cron schedule), e.g. *"every Monday at
-8am, run a full KB lint pass on ~/notes as the kmd-librarian agent and leave
-the report in the KB"*.
+**Claude Code, built in:** use `/schedule` in a session — e.g. *"every
+Monday at 8am, run a full KB health check on ~/notes as the kmd-librarian
+agent and leave the report in the KB"*.
 
-**Claude Code — system cron (local, headless).** `claude -p` runs a prompt
-non-interactively with your installed plugins; give it edit permissions and
-point it at the workspace:
+**Claude Code, plain cron:** `claude -p` runs headless with your installed
+plugins:
 
 ```cron
 # daily intake at 07:30
-30 7 * * * cd ~/notes && claude -p "Use the kmd:kmd-intake agent to drain un-ingested sources from the KB" --permission-mode acceptEdits
+30 7 * * * cd ~/notes && claude -p "Use the kmd:kmd-intake agent to process new sources in the KB" --permission-mode acceptEdits
 
 # weekly librarian pass, Monday 08:00
-0 8 * * 1 cd ~/notes && claude -p "Use the kmd:kmd-librarian agent to run a full KB lint pass" --permission-mode acceptEdits
+0 8 * * 1 cd ~/notes && claude -p "Use the kmd:kmd-librarian agent to run a full KB health check" --permission-mode acceptEdits
 ```
 
-**Codex — system cron.** `codex exec` is the headless equivalent; reference
-the skill explicitly and grant workspace writes:
+**Codex:** `codex exec` is the headless equivalent:
 
 ```cron
 0 8 * * 1 cd ~/notes && codex exec --full-auto "Run the kmd-lint skill end to end on this workspace's KB as author 'librarian'"
 ```
 
-Two notes that matter in practice: the enforcement hooks are active in these
-scheduled sessions too (the plugin travels with the CLI), and every scheduled
-run still ends with a `LOG.md` entry — so `LOG.md` doubles as your audit
-trail of what automation did while you weren't looking.
+Two things worth knowing: the hooks are active in scheduled runs too (the
+plugin travels with the CLI), and every run ends with a `LOG.md` entry — so
+the log doubles as a record of what automation did while you weren't
+looking.
 
 ## Extensions
 
-The core above is domain-agnostic knowledge management. Extensions layer
-domain-specific conventions on top — declared in `.kmd.json`, loaded by the
-skills only when present, invisible otherwise. One ships today.
+The core is just knowledge management — no assumptions about who's using
+the KB. Extensions add conventions for specific setups, declared in
+`.kmd.json` and ignored otherwise. One ships today.
 
-### Org extension — KBs inside agent organizations
+### Org extension — one KB shared by a team of agents
 
-For a KB shared by an autonomous agent organization (an org chart of agents
-with roles, workspaces, and handoffs). Enable it by declaring `"org"` in
-`.kmd.json`:
+For a KB shared by multiple autonomous agents with roles and their own
+workspaces. Turn it on by declaring `"org"` in `.kmd.json`:
 
 ```json
 {
@@ -324,46 +312,39 @@ with roles, workspaces, and handoffs). Enable it by declaring `"org"` in
 }
 ```
 
-What it changes — defined in `references/org-extension.md` inside each skill:
-
-- `author:` and `--agent` become **agent ids**; the author field doubles as
-  a routing address
-- `kmd-intake` checks **topical ownership** in `ORG.md` and hands off
-  out-of-domain sources to the owner's inbox instead of ingesting them
-- `kmd-librarian` **routes** judgment findings to page authors' inboxes
-  rather than recording open items for a single owner
-- provenance may cite agent-workspace files (daily logs, handoff notes)
-
-The ingest discipline itself is identical in both modes — the extension
-changes routing, never the protocol.
+What changes (spelled out in `references/org-extension.md` inside each
+skill): authors become agent ids, `kmd-intake` checks who owns a topic
+before ingesting and hands off anything that belongs to someone else,
+`kmd-librarian` sends its findings to the responsible agent's inbox instead
+of one owner's report, and pages may cite agent logs and handoff notes as
+sources. The writing rules themselves don't change — only who does what.
 
 ## Development
 
-Code consistency across Python, JS, and markdown is enforced by the Makefile
-harness (conventions in [docs/code-style](docs/code-style/README.md)):
+One Makefile keeps the Python, JS, and markdown consistent (conventions in
+[docs/code-style](docs/code-style/README.md)):
 
 ```bash
 make init                        # uv sync (python dev tools) + bun install (installer)
 make format                      # isort + black (python), biome (js)
-make lint                        # isort/black --check, ruff, pyright, biome,
-                                 #   yamllint, markdownlint, version-drift check
+make lint                        # everything: style, types, markdown, yaml, version drift
 make typecheck                   # mypy + pyright in parallel (both strict)
-make bump-version VERSION=x.y.z # set the version everywhere it lives
+make bump-version VERSION=x.y.z  # set the version everywhere it lives
 ```
 
-The version is duplicated across the four plugin manifests, the Grok
-marketplace entry, the installer's package.json, and both SKILL.md
-frontmatters — `make bump-version` keeps all eight in lockstep
-(format-preserving), and `make check-version` (part of `make lint`) fails on
-drift. The README version badge tracks npm live and needs no bumping. Requires [uv](https://docs.astral.sh/uv/) and [bun](https://bun.sh);
-`markdownlint` is optional (`npm i -g markdownlint-cli`).
+The version appears in eight places (four plugin manifests, the Grok
+marketplace entry, the installer's package.json, both SKILL.md files) —
+`make bump-version` updates them all without reformatting anything, and
+`make lint` fails if they ever disagree. The npm badge above tracks the
+registry on its own. Requires [uv](https://docs.astral.sh/uv/) and
+[bun](https://bun.sh); `markdownlint` is optional
+(`npm i -g markdownlint-cli`).
 
 ## Requirements
 
-Python 3.12+ on PATH as `python3` (per this repo's
-[code style](../../docs/code-style/python/README.md); the scripts use only
-the standard library — no packages to install). Source immutability checks
-need the KB under git (skipped gracefully otherwise). One bootstrap edge: a
-brand-new KB with a custom directory name has no markers until `SCHEMA.md`
-exists, so hook protection starts after the schema is bootstrapped (or
-immediately, with a `.kmd.json`).
+Python 3.12+ on PATH as `python3` — the scripts use only the standard
+library, nothing to install. The "nobody edited an existing source" check
+needs the KB under git and quietly says so when it isn't. One small edge:
+a brand-new KB in a custom-named folder isn't recognized until `SCHEMA.md`
+exists, so hook protection starts right after bootstrap (or immediately, if
+you add a `.kmd.json`).
