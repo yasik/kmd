@@ -1,5 +1,10 @@
 # kmd — Knowledge MarkDown
 
+![version](https://img.shields.io/badge/version-0.1.0-blue)
+![agents](https://img.shields.io/badge/agents-Claude_Code_%C2%B7_Codex_%C2%B7_Cursor_%C2%B7_Grok_%C2%B7_Amp_%C2%B7_opencode_%C2%B7_pi_%C2%B7_Hermes-blueviolet)
+![skills](https://img.shields.io/badge/Agent_Skills-open_standard-orange)
+![license](https://img.shields.io/badge/license-MIT-green)
+
 Operate a markdown knowledge base (Obsidian-compatible, the
 [LLM-wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f))
 with your coding agent: disciplined writes, scheduled health checks, and
@@ -149,7 +154,7 @@ Codex caveats: the guard hook parses Codex
 markers); the PostToolUse validator is Claude-only for now; project hooks
 require `.codex/` trust.
 
-## Other harnesses — Cursor, Amp, opencode, pi, Hermes
+## Other harnesses — Cursor, Amp, opencode, pi, Hermes, Grok
 
 The skills are the portable core: all major harnesses read the
 [Agent Skills standard](https://agentskills.io), so kmd-ingest and kmd-lint
@@ -162,6 +167,11 @@ work everywhere. Enforcement hooks and bundled agents vary by harness:
 | **opencode** | ✓ `.agents/skills/` | ✓ `.opencode/agents/` (copy from `agents/`) | plugin adapter below, or `permission` config | ✓ `opencode.json` `mcp` |
 | **pi** | ✓ `.agents/skills/` | ✗ (no subagents, by design) | extension adapter below | ✗ — agents call the `qmd` CLI directly |
 | **Hermes** | ✓ `~/.hermes/skills/` | ✗ (delegation only) | ✓ shell hook (guard speaks its dialect) | ✓ `config.yaml` `mcp_servers` |
+| **Grok** | ✓ plugin (`.grok-plugin/` manifest in this repo) | ✗ | ✗ | — |
+
+A `.skillignore` at the repo root keeps skill installers focused on the two
+runtime skills — plugin plumbing, the dev harness, and local artifacts are
+excluded from skill bundles.
 
 **Installing the skills.** The installer detects these harnesses and runs the
 [`npx skills`](https://github.com/vercel-labs/skills) CLI for you; manually:

@@ -1,0 +1,47 @@
+# kmd — skill scanner/packaging exclusions (gitignore syntax, repo root).
+# Keeps skill installs focused on the runtime skills under skills/
+# (kmd-ingest, kmd-lint); everything below is plugin plumbing, dev
+# harness, or local artifacts that have no business in a skill bundle.
+
+# VCS, environments, caches, local artifacts
+.git/
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+*.log
+.DS_Store
+.coverage
+htmlcov/
+dist/
+
+# Local test fixtures and planning notes (gitignored, but present on disk)
+fixtures/
+docs/plans/
+
+# Plugin plumbing — installed via plugin managers, not as skills
+.claude-plugin/
+.codex-plugin/
+.cursor-plugin/
+.grok-plugin/
+.agents/
+agents/
+codex/
+hooks/
+installer/
+
+# Dev harness, repo meta, one-off scripts
+docs/
+Makefile
+pyproject.toml
+pyrightconfig.json
+ruff.toml
+uv.lock
+.isort.cfg
+.markdownlint.yaml
+.yamllint.yaml
+.gitignore
+.skillignore
+AGENTS.md
+CLAUDE.md
+cleanup-vault-test.sh

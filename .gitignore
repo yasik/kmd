@@ -2,6 +2,12 @@
 __pycache__/
 *.pyc
 .venv/
+.coverage
+.env
+.env.*
+!.env.example
+/dist/
+htmlcov/
 node_modules/
 fixtures/
 installer/assets/
