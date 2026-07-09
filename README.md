@@ -1,6 +1,6 @@
 # kmd — Knowledge MarkDown
 
-![version](https://img.shields.io/badge/version-0.1.0-blue)
+[![npm](https://img.shields.io/npm/v/create-kmd)](https://www.npmjs.com/package/create-kmd)
 ![agents](https://img.shields.io/badge/agents-Claude_Code_%C2%B7_Codex_%C2%B7_Cursor_%C2%B7_Grok_%C2%B7_Amp_%C2%B7_opencode_%C2%B7_pi_%C2%B7_Hermes-blueviolet)
 ![skills](https://img.shields.io/badge/Agent_Skills-open_standard-orange)
 ![license](https://img.shields.io/badge/license-MIT-green)
@@ -46,9 +46,6 @@ sensible defaults at every step:
 ```bash
 npx create-kmd            # or point it at a dir / Obsidian vault
 ```
-
-(Until the package is published to npm: `node installer/bin/create-kmd.mjs`
-from a clone of this repo.)
 
 **Manual paths** below, if you prefer to see every move.
 
@@ -355,10 +352,10 @@ make bump-version VERSION=x.y.z # set the version everywhere it lives
 ```
 
 The version is duplicated across the four plugin manifests, the Grok
-marketplace entry, the installer's package.json, both SKILL.md frontmatters,
-and the README badge — `make bump-version` keeps all nine in lockstep
+marketplace entry, the installer's package.json, and both SKILL.md
+frontmatters — `make bump-version` keeps all eight in lockstep
 (format-preserving), and `make check-version` (part of `make lint`) fails on
-drift. Requires [uv](https://docs.astral.sh/uv/) and [bun](https://bun.sh);
+drift. The README version badge tracks npm live and needs no bumping. Requires [uv](https://docs.astral.sh/uv/) and [bun](https://bun.sh);
 `markdownlint` is optional (`npm i -g markdownlint-cli`).
 
 ## Requirements

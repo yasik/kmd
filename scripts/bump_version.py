@@ -7,8 +7,9 @@ When a new manifest gains a version field, add it to `TARGETS` below; the
 `--check` mode (wired into `make lint`) then guards it against drift.
 
 Locations: the four plugin manifests (Claude, Codex, Cursor, Grok), the Grok
-marketplace entry, the installer's package.json, both SKILL.md frontmatters,
-and the README version badge.
+marketplace entry, the installer's package.json, and both SKILL.md
+frontmatters. The README version badge is NOT managed here — it is a live
+shields.io npm badge that tracks the registry on its own.
 
 Typical usage example:
 
@@ -109,9 +110,6 @@ class Target:
 _JSON_VERSION = _json_version_path("version")
 _GROK_MARKETPLACE = _json_version_path("plugins", 0, "version")
 _SKILL_FRONTMATTER = _regex_version(r"^version: (\S+)$", "version: {version}")
-_README_BADGE = _regex_version(
-    r"badge/version-(.+?)-blue", "badge/version-{version}-blue"
-)
 
 TARGETS: tuple[Target, ...] = (
     Target(".claude-plugin/plugin.json", *_JSON_VERSION),
@@ -122,7 +120,6 @@ TARGETS: tuple[Target, ...] = (
     Target("installer/package.json", *_JSON_VERSION),
     Target("skills/kmd-ingest/SKILL.md", *_SKILL_FRONTMATTER),
     Target("skills/kmd-lint/SKILL.md", *_SKILL_FRONTMATTER),
-    Target("README.md", *_README_BADGE),
 )
 
 
