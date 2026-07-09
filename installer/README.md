@@ -12,7 +12,8 @@ npx create-kmd --yes      # accept all defaults, no prompts
 
 ## What it sets up
 
-1. **Knowledge base** — `SCHEMA.md` (from the bundled template), `sources/`,
+1. **Knowledge base** — a production `SCHEMA.md` assembled from the template
+   (template language stripped; org section only in org mode), `sources/`,
    and a `.kmd.json` when the KB folder isn't named `kb/` or org mode is on.
    Detects Obsidian vaults and scaffolds the KB as a folder inside them.
 2. **Git baseline** — offers `git init` + initial commit; the `sources/`

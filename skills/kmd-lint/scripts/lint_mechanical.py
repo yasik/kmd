@@ -11,6 +11,11 @@ Checks:
   W orphan-page       page with zero inbound wikilinks from other pages
   W unlogged-changes  pages updated on a date with no LOG.md entry that day
   W oversized-page    page body > --max-lines (default 300) — split candidate
+  W index-drift       INDEX.md missing or out of date vs a fresh render —
+                      run recompile_index.py (kmd-ingest skill)
+
+When the sources append-only check cannot run (KB not under git), that gap
+is reported as an explicit note instead of silently implying coverage.
 
 Output: human-readable summary to stdout (or --format json), and with
 --report, a markdown report skeleton written to <report-dir>/<date>-mechanical.md
@@ -45,6 +50,7 @@ from kb_common import (  # noqa: E402
     build_link_index,
     extract_wikilinks,
     find_kb,
+    index_status,
     iter_kb_pages,
     iter_sources,
     link_resolves,
@@ -227,6 +233,57 @@ def _check_source_immutability(kb: KB) -> list[Finding]:
     return findings
 
 
+def check_index(kb: KB) -> list[Finding]:
+    """Flag a missing or stale INDEX.md (the script-owned routing layer)."""
+    status = index_status(kb)
+    if status == "current":
+        return []
+    detail = (
+        "does not exist" if status == "missing" else "out of date vs a fresh render"
+    )
+    return [
+        Finding(
+            "index-drift",
+            Severity.WARNING,
+            "INDEX.md",
+            f"{detail} — run recompile_index.py (kmd-ingest skill)",
+        )
+    ]
+
+
+def sources_check_note(kb: KB) -> str | None:
+    """Explain when the append-only check has no enforcement backend.
+
+    Silence would imply coverage the run did not have — the gap gets a
+    visible note instead of a silent skip.
+    """
+    sources_dir = kb.root / "sources"
+    if not sources_dir.is_dir():
+        return None
+
+    git_available = (
+        subprocess.run(  # noqa: S603 — fixed argv, trusted constant command
+            [  # noqa: S607
+                "git",
+                "-C",
+                str(sources_dir),
+                "rev-parse",
+                "--is-inside-work-tree",
+            ],
+            capture_output=True,
+            timeout=30,
+            check=False,
+        ).returncode
+        == 0
+    )
+    if git_available:
+        return None
+    return (
+        "note: sources append-only check skipped — the KB is not under git, "
+        "so source tampering cannot be detected"
+    )
+
+
 def check_orphans(meta: dict[str, PageMeta]) -> list[Finding]:
     """Flag pages with zero inbound wikilinks from other pages."""
     inbound = {rel: 0 for rel in meta}
@@ -382,27 +439,29 @@ def main() -> None:
     findings += check_sources(kb, meta)
     findings += check_orphans(meta)
     findings += check_log_consistency(kb, meta, args.log_window_days)
+    findings += check_index(kb)
 
     n_err = sum(1 for f in findings if f.severity == Severity.ERROR)
     n_warn = len(findings) - n_err
+    note = sources_check_note(kb)
 
     if args.format == "json":
-        print(
-            json.dumps(
-                {
-                    "errors": n_err,
-                    "warnings": n_warn,
-                    "findings": [asdict(f) for f in findings],
-                },
-                indent=2,
-            )
-        )
+        payload: dict[str, object] = {
+            "errors": n_err,
+            "warnings": n_warn,
+            "findings": [asdict(f) for f in findings],
+        }
+        if note:
+            payload["notes"] = [note]
+        print(json.dumps(payload, indent=2))
     else:
         print(
             f"KB lint (mechanical): {n_err} error(s), {n_warn} warning(s) "
             f"across {len(meta)} page(s)\n"
         )
         print(render_mechanical(findings))
+        if note:
+            print(f"\n{note}")
 
     if args.report:
         report_dir = (

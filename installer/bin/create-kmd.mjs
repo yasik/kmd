@@ -252,6 +252,27 @@ function heading(title) {
 }
 
 /**
+ * Assemble a production SCHEMA.md from the template: the template-note block
+ * is always stripped; the org-extension block is kept (minus its markers)
+ * only when org mode is on. The installed file carries no template language.
+ */
+function assembleSchema(template, org) {
+  let schema = template.replace(
+    /<!-- kmd:template-note:start[\s\S]*?kmd:template-note:end -->\n?/,
+    "",
+  );
+  schema = org
+    ? schema
+        .replace(/<!-- kmd:org-extension:start -->\n?/, "")
+        .replace(/<!-- kmd:org-extension:end -->\n?/, "")
+    : schema.replace(
+        /<!-- kmd:org-extension:start -->[\s\S]*?<!-- kmd:org-extension:end -->\n?/,
+        "",
+      );
+  return `${schema.trimEnd()}\n`;
+}
+
+/**
  * Step 1 — scaffold the KB.
  * @returns {{ workspace: string, kbRoot: string, kbDir: string }}
  */
@@ -273,6 +294,12 @@ async function scaffold(options) {
   mkdirSync(join(kbRoot, "sources"), { recursive: true });
   record(`${kbDir}/sources/ ready`);
 
+  // Org mode is decided before the schema is written: the installed
+  // SCHEMA.md carries the org section only when the extension is on.
+  const org =
+    options.org ||
+    (await confirm("Enable the org extension (agent organizations)?", false));
+
   const schemaPath = join(kbRoot, "SCHEMA.md");
   if (existsSync(schemaPath)) {
     note("SCHEMA.md already exists — kept as is");
@@ -282,15 +309,14 @@ async function scaffold(options) {
         "the kmd-ingest skill: references/schema-template.md",
     );
   } else {
-    writeFileSync(schemaPath, readFileSync(SCHEMA_TEMPLATE_PATH, "utf8"));
+    writeFileSync(
+      schemaPath,
+      assembleSchema(readFileSync(SCHEMA_TEMPLATE_PATH, "utf8"), org),
+    );
     record(
-      `${kbDir}/SCHEMA.md bootstrapped from the template (adapt it to your domain)`,
+      `${kbDir}/SCHEMA.md installed (production copy — no template language${org ? ", org section kept" : ""})`,
     );
   }
-
-  const org =
-    options.org ||
-    (await confirm("Enable the org extension (agent organizations)?", false));
   const configPath = join(workspace, ".kmd.json");
   const needsConfig = kbDir !== "kb" || org;
 

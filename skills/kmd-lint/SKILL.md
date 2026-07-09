@@ -32,8 +32,11 @@ python3 scripts/lint_mechanical.py --kb <kb-root> --report --agent <your-name-or
 
 This checks: broken wikilinks, invalid/missing frontmatter (including the
 provenance rule), modified files under `sources/` (append-only violation,
-via git), unreferenced sources (un-ingested intake), orphan pages, page
-updates with no LOG entry, oversized pages. With `--report` it writes a
+via git — when the KB is not under git the script says so explicitly rather
+than implying coverage), unreferenced sources (un-ingested intake), orphan
+pages, page updates with no LOG entry, oversized pages, and a missing or
+stale `INDEX.md` (fix: `recompile_index.py` from kmd-ingest). With
+`--report` it writes a
 report skeleton to `<kb>/.lint/<date>-mechanical.md` (or the `report_dir`
 configured in `.kmd.json`) with empty **Judgment findings** and **Resolution**
 sections for you to fill in. Use `--format json` to process findings
