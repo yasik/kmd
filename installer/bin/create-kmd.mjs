@@ -314,7 +314,7 @@ async function scaffold(options) {
       assembleSchema(readFileSync(SCHEMA_TEMPLATE_PATH, "utf8"), org),
     );
     record(
-      `${kbDir}/SCHEMA.md installed (production copy — no template language${org ? ", org section kept" : ""})`,
+      `${kbDir}/SCHEMA.md installed${org ? ", org section included" : ""}`,
     );
   }
   const configPath = join(workspace, ".kmd.json");
@@ -531,6 +531,28 @@ async function setupQmd(options, kbRoot, workspace, clis) {
   }
   if (!wantEmbed) {
     note("semantic search skipped — enable any time with: qmd embed");
+  }
+
+  // qmd has no file watcher, and `qmd update` has no per-collection scope —
+  // it re-indexes everything and runs every collection's update command.
+  // Refreshing on each ingest is therefore an explicit choice, not a default.
+  const autoRefresh = await confirm(
+    "Refresh the search index after every ingest? (runs `qmd update`, which also re-indexes your other qmd collections)",
+    false,
+  );
+  if (autoRefresh) {
+    const configPath = join(workspace, ".kmd.json");
+    const config = existsSync(configPath)
+      ? JSON.parse(readFileSync(configPath, "utf8"))
+      : {};
+    config.qmd_update_on_ingest = true;
+    writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+    record(".kmd.json: search index refreshes on every ingest");
+  }
+  if (!autoRefresh) {
+    note(
+      "search index refreshes on your schedule — add `qmd update` to a cron job (see the README)",
+    );
   }
 
   if (

@@ -74,8 +74,11 @@ the link-rot tradeoff consciously).
 
 ### 3. Dedup gate — search before writing
 
-Search the KB for existing pages on the topic (`kb_search` / qmd if
-available, otherwise `INDEX.md` + grep). This decides **new page vs. edit**:
+Search the KB for existing pages on the topic. Use qmd if available, but
+**always check `INDEX.md` too**: the index is regenerated on every ingest,
+while qmd's search index only moves when `qmd update` runs — a page created
+an hour ago may be invisible to qmd. Never conclude a page doesn't exist
+from qmd results alone. This decides **new page vs. edit**:
 
 - Create a new page only for a distinct, linkable concept you expect other
   pages to reference.
@@ -163,6 +166,12 @@ python3 scripts/recompile_index.py --kb <kb-root>
 `INDEX.md` is the routing layer other agents search before reading pages —
 it is script-owned (never hand-edited; the guard hook enforces this) and
 this is the script. Lint flags a missing or stale index.
+
+If qmd is installed, the script also refreshes qmd's search index when
+`.kmd.json` opts in (`"qmd_update_on_ingest": true`); otherwise it prints a
+reminder that search freshness rides on the scheduled `qmd update`. Do not
+run `qmd update` yourself beyond this — it re-indexes every collection the
+user has and runs their update commands.
 
 ## What you never do
 

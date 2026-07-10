@@ -5,16 +5,17 @@
 ![skills](https://img.shields.io/badge/Agent_Skills-open_standard-orange)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
-A knowledge base in plain markdown, kept by your coding agent. You drop in
-articles, papers, meeting notes, whatever — the agent turns them into small,
+A knowledge base in plain markdown inspred by Karpathy's
+[LLM-wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) and 
+made compatible with any coding agent. Designed for Obsidian as a first-class use case.
+
+You drop in articles, papers, meeting notes, whatever — the agent turns them into small,
 linked pages that say where every fact came from, and checks the whole thing
 regularly so it stays trustworthy. Works with Obsidian, and with any agent
-that reads the [Agent Skills standard](https://agentskills.io). The approach
-follows Karpathy's
-[LLM-wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+that reads the [Agent Skills standard](https://agentskills.io).
 
 It's the companion to [qmd](https://github.com/tobi/qmd): **qmd searches
-your markdown, kmd keeps it.**
+your markdown knowledge base, kmd keeps and manages it.**
 
 Built for personal knowledge bases first. If you're running a team of agents
 that share one KB, there's an [extension](#extensions) for that.
@@ -112,8 +113,9 @@ The optional `.kmd.json` sits in the folder above your KB:
 
 ```json
 {
-  "root": "knowledge",        // KB folder name (default "kb")
-  "report_dir": ".lint"       // where lint reports go, relative to the KB
+  "root": "knowledge",            // KB folder name (default "kb")
+  "report_dir": ".lint",          // where lint reports go, relative to the KB
+  "qmd_update_on_ingest": true    // refresh qmd's search index after every ingest
 }
 ```
 
@@ -251,8 +253,17 @@ args = ["mcp"]
 In practice: `qmd search` (keyword, instant) covers the "does a page on this
 already exist?" check and quick lookups; `qmd query` (semantic + reranking)
 is for the harder questions. The context line above isn't decoration — qmd
-feeds it to the reranker, and it noticeably improves results. Keep the index
-fresh with `qmd update && qmd embed` alongside the scheduled jobs below.
+feeds it to the reranker, and it noticeably improves results.
+
+**One thing to know about freshness:** qmd doesn't watch files — its index
+only moves when `qmd update` runs. By default that happens on your schedule
+(the cron jobs below), so a page created five minutes ago isn't in search
+yet. That's safe — the ingest rules always double-check `INDEX.md`, which
+is regenerated on every write — but if you'd rather have search current at
+all times, set `"qmd_update_on_ingest": true` in `.kmd.json` and
+`recompile_index.py` will run `qmd update` after each ingest. It's opt-in
+because `qmd update` has no per-collection scope: it re-indexes every
+collection you have and runs each one's update command.
 
 ## Running it on a schedule
 
