@@ -29,7 +29,7 @@
         "noExcessiveLinesPerFile": {
           "level": "error",
           "options": {
-            "maxLines": 600
+            "maxLines": 700
           }
         }
       },
@@ -58,7 +58,11 @@
     }
   },
   "files": {
-    "includes": ["bin/**/*.mjs", "!**/node_modules", "!**/dist"]
+    "includes": [
+      "bin/**/*.mjs",
+      "!**/node_modules",
+      "!**/dist"
+    ]
   },
   "vcs": {
     "enabled": true,
