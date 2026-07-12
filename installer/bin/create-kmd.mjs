@@ -555,8 +555,29 @@ async function setupQmd(options, kbRoot, workspace, clis) {
     );
   }
 
+  // qmd ships its own agent skill (how to search well: structured queries,
+  // the get/multi-get loop) — the natural companion to kmd's write skills.
+  // For Claude Code, qmd's docs recommend the plugin, which carries the
+  // skill AND the MCP server together; bare MCP registration is the
+  // fallback when the plugin is declined.
+  let claudeHasQmdPlugin = false;
   if (
     clis.hasClaude &&
+    (await confirm(
+      "Install qmd's Claude Code plugin? (its search skill + MCP server — teaches agents to query well)",
+      true,
+    ))
+  ) {
+    run("claude", ["plugin", "marketplace", "add", "tobi/qmd"]);
+    if (run("claude", ["plugin", "install", "qmd@qmd"])) {
+      claudeHasQmdPlugin = true;
+      record("qmd plugin installed in Claude Code (search skill + MCP tools)");
+    }
+  }
+
+  if (
+    clis.hasClaude &&
+    !claudeHasQmdPlugin &&
     (await confirm("Register qmd as an MCP server in Claude Code?", true))
   ) {
     if (
@@ -576,6 +597,34 @@ async function setupQmd(options, kbRoot, workspace, clis) {
       );
     } else {
       note("registration failed — it may already exist (`claude mcp list`)");
+    }
+  }
+
+  // Everyone else gets the skill via the skills CLI.
+  const qmdSkillTargets = [
+    ...(clis.hasCodex ? [{ name: "Codex", skillsId: "codex" }] : []),
+    ...(clis.others ?? []),
+  ];
+  for (const harness of qmdSkillTargets) {
+    const wanted = await confirm(
+      `Install qmd's search skill for ${harness.name}?`,
+      true,
+    );
+    if (!wanted) continue;
+    if (
+      run("npx", [
+        "-y",
+        "skills",
+        "add",
+        "tobi/qmd",
+        "--skill",
+        "qmd",
+        "-a",
+        harness.skillsId,
+        "-g",
+      ])
+    ) {
+      record(`qmd search skill installed for ${harness.name}`);
     }
   }
 

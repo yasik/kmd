@@ -250,6 +250,17 @@ command = "qmd"
 args = ["mcp"]
 ```
 
+qmd also ships its own agent skill — the how-to-search companion to kmd's
+how-to-write. It teaches agents to retrieve full sources instead of
+answering from snippets, and to write structured queries by hand. The
+installer offers it; manually it's the qmd plugin for Claude Code
+(`claude plugin marketplace add tobi/qmd && claude plugin install qmd@qmd` —
+skill and MCP server together), or elsewhere:
+
+```bash
+npx skills add tobi/qmd --skill qmd -a codex -g   # same -a values as above
+```
+
 In practice: `qmd search` (keyword, instant) covers the "does a page on this
 already exist?" check and quick lookups; `qmd query` (semantic + reranking)
 is for the harder questions. The context line above isn't decoration — qmd
