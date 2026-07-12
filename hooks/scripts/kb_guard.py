@@ -134,18 +134,18 @@ def check_path(path_str: str, is_update: bool | None = None) -> str | None:
 
 
 def candidate_paths(tool_input: dict[str, object]) -> Iterator[tuple[str, bool | None]]:
-    """Yield (path, is_update) candidates from Claude or Codex tool payloads.
+    """Yield (path, is_update) candidates from harness tool payloads.
 
     `tool_input` is the raw payload from the hook event — a genuinely dynamic
-    map read once here at the trust boundary.
+    map read once here at the trust boundary. Path keys come in two dialects:
+    snake_case (Claude Code, Hermes) and camelCase (opencode's write/edit
+    args pass `filePath`).
     """
-    file_path = (
-        tool_input.get("file_path")
-        or tool_input.get("path")
-        or tool_input.get("notebook_path")
-    )
-    if isinstance(file_path, str):
-        yield file_path, None
+    for key in ("file_path", "filePath", "path", "notebook_path", "notebookPath"):
+        file_path = tool_input.get(key)
+        if isinstance(file_path, str):
+            yield file_path, None
+            break
 
     for key in ("patch", "input", "changes"):  # Codex apply_patch variants
         patch = tool_input.get(key)

@@ -199,14 +199,23 @@ hooks:
 
 opencode can get most of the protection with no code at all — its
 `permission` config can deny edits by path pattern. For the full guard,
-a small plugin (untested; `.opencode/plugins/kb-guard.js`):
+a small plugin (tested against opencode 1.17; `.opencode/plugin/kmd-guard.js`
+— note `spawnSync` for stdin: opencode's `$` shell doesn't feed piped input,
+which would leave the guard waiting forever):
 
 ```js
-export default async ({ $ }) => ({
+import { spawnSync } from "node:child_process";
+
+const GUARD = "<plugin>/hooks/scripts/kb_guard.py";
+
+export default async () => ({
   "tool.execute.before": async (input, output) => {
+    if (!["write", "edit"].includes(input.tool)) return;
     const payload = JSON.stringify({ tool_name: input.tool, tool_input: output.args });
-    const res = await $`python3 <plugin>/hooks/scripts/kb_guard.py < ${new Response(payload)}`.text();
-    const verdict = res.trim() && JSON.parse(res);
+    const res = spawnSync("python3", [GUARD], { input: payload, encoding: "utf8", timeout: 15000 });
+    const text = (res.stdout ?? "").trim();
+    if (!text) return;
+    const verdict = JSON.parse(text);
     if (verdict?.hookSpecificOutput?.permissionDecision === "deny")
       throw new Error(verdict.hookSpecificOutput.permissionDecisionReason);
   },
