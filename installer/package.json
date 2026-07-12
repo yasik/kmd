@@ -1,6 +1,6 @@
 {
   "name": "create-kmd",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Interactive installer for a kmd knowledge base: scaffolds the KB, installs the Claude Code / Codex plugin, and wires up qmd search — with sensible defaults.",
   "bin": {
     "create-kmd": "./bin/create-kmd.mjs"

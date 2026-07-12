@@ -1,6 +1,6 @@
 ---
 name: kmd-lint
-version: 0.1.0
+version: 0.2.0
 description: Health check for a markdown knowledge base (Obsidian-compatible, the LLM-wiki pattern) — personal or shared. Use whenever asked to lint, audit, check, review, or clean up a KB, on any scheduled hygiene/maintenance run, or when KB quality is in doubt (stale pages, contradictions, broken links, unprocessed sources, index drift). Drift is the KB's primary failure mode; if in doubt whether a lint pass is warranted, it is.
 ---
 

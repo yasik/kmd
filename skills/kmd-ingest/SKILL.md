@@ -1,6 +1,6 @@
 ---
 name: kmd-ingest
-version: 0.1.0
+version: 0.2.0
 description: The write protocol for a markdown knowledge base (Obsidian-compatible, the LLM-wiki pattern) — personal or shared. Use for EVERY write into the KB — distilling a new or scraped source, promoting a finished artifact/report/lesson into the KB, filing a durable learning or insight, or correcting/updating an existing page, even a one-line fix. If you are about to create or edit any file inside a knowledge base (a directory with SCHEMA.md/LOG.md, a .kmd.json config, or a kb/ folder), use this skill first; there is no free-form edit path to the KB.
 ---
 
