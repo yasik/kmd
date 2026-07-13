@@ -61,6 +61,14 @@ page right after it's written and sends any problems straight back to the
 agent. Shell-level writes aren't intercepted on purpose — catching those is
 lint's job.
 
+### Architecture
+
+Humans use `kmd-operator` as the single KB entry point. It handles interactive
+queries and writes, and delegates batch intake or health work to the backgroundlimitations
+agents. Scheduled runs invoke those workers directly.
+
+![KMD architecture showing agents, skills, knowledge-base entities, and information flow](docs/assets/kmd-architecture.svg)
+
 ## Quick start
 
 ```bash
