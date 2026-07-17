@@ -5,7 +5,7 @@
 ![skills](https://img.shields.io/badge/Agent_Skills-open_standard-orange)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
-A knowledge base in plain markdown inspred by Karpathy's
+A knowledge base in plain markdown inspired by Karpathy's
 [LLM-wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) and 
 made compatible with any coding agent. Designed for Obsidian as a first-class use case.
 
@@ -32,16 +32,22 @@ Your KB is a folder of markdown files with a few simple rules:
   lists its sources in frontmatter. Filenames are the titles — Obsidian
   shows them everywhere — so a page is called
   `GPU memory math for LLMs.md`, not `gpu-memory-math-for-llms.md`.
-- **`INDEX.md`** lists every page with a one-liner (a script generates it),
-  **`LOG.md`** records every change, and **`SCHEMA.md`** spells out the
+- **`index.md`** lists every page with a one-liner (a script generates it),
+  **`log.md`** records every change, and **`schema.md`** spells out the
   rules for your particular KB.
 
 Two skills teach any agent to work this way:
 
-- **kmd-ingest** — how to write. Check whether a page already exists before
-  making a new one, condense instead of copy, link related pages, cite
-  sources, log the change, refresh the index. Ships with small scripts that
-  validate each page and keep the log format consistent.
+- **kmd-ingest** — how to write. Decide save vs. skip (insights, decisions,
+  and reusable analyses in; mechanical Q&A and duplicates out), check
+  whether a page already exists before making a new one, condense instead
+  of copy — declarative and present tense, dense with wikilinks — link
+  related pages, cite sources, mark contradictions with callouts on both
+  pages, log the change, refresh the index. Where it genuinely helps, pages
+  get enriched: a mermaid diagram inline, a chart in `assets/`, a Marp deck
+  — and durable query answers get filed back as pages, which is the
+  compounding loop. Ships with small scripts that validate each page and
+  keep the log format consistent.
 - **kmd-lint** — how to check. A script catches the mechanical problems
   (broken links, missing fields, sources no page cites, a stale index),
   then the agent reads for what a script can't see: pages that contradict
@@ -56,7 +62,7 @@ Three ready-made agents use them:
   writes up the rest.
 
 Two small hooks keep agents honest: one blocks edits to files nobody should
-hand-edit (`INDEX.md`, `LOG.md`, existing sources), the other checks every
+hand-edit (`index.md`, `log.md`, existing sources), the other checks every
 page right after it's written and sends any problems straight back to the
 agent. Shell-level writes aren't intercepted on purpose — catching those is
 lint's job.
@@ -64,7 +70,7 @@ lint's job.
 ### Architecture
 
 Humans use `kmd-operator` as the single KB entry point. It handles interactive
-queries and writes, and delegates batch intake or health work to the backgroundlimitations
+queries and writes, and delegates batch intake or health work to the background
 agents. Scheduled runs invoke those workers directly.
 
 ![KMD architecture showing agents, skills, knowledge-base entities, and information flow](docs/assets/kmd-architecture.svg)
@@ -85,19 +91,19 @@ Or by hand:
 ```bash
 # a new folder
 mkdir -p ~/notes/knowledge/sources
-cp skills/kmd-ingest/references/schema-template.md ~/notes/knowledge/SCHEMA.md
+cp skills/kmd-ingest/references/schema-template.md ~/notes/knowledge/schema.md
 printf '{"root": "knowledge"}\n' > ~/notes/.kmd.json   # only needed when the folder isn't named kb/
 
 # or inside an obsidian vault — the KB is just a folder in it
 VAULT=~/Obsidian/MyVault
 mkdir -p "$VAULT/kb/sources"
-cp skills/kmd-ingest/references/schema-template.md "$VAULT/kb/SCHEMA.md"
+cp skills/kmd-ingest/references/schema-template.md "$VAULT/kb/schema.md"
 ```
 
 The rest of your vault stays out of it: daily notes and attachments are
 untouched, `.obsidian/` and other dot-folders are ignored, and wikilinks
 between KB pages and the rest of the vault work both ways. You *can* make
-the whole vault the KB by putting `SCHEMA.md` at the vault root — but then
+the whole vault the KB by putting `schema.md` at the vault root — but then
 every scratch note is held to the page rules and lint will complain about
 them, so the folder-in-vault setup is the right default.
 
@@ -115,7 +121,7 @@ drop raw material into <kb>/sources/
 Nothing is tied to a fixed path. Scripts and hooks find the KB in this
 order: an explicit `--kb <path>`, the `$KMD_ROOT` env var, or walking up
 from the current directory until they hit a `.kmd.json`, a folder containing
-`SCHEMA.md`/`LOG.md`, or a `kb/` folder.
+`schema.md`/`log.md`, or a `kb/` folder.
 
 The optional `.kmd.json` sits in the folder above your KB:
 
@@ -123,11 +129,25 @@ The optional `.kmd.json` sits in the folder above your KB:
 {
   "root": "knowledge",            // KB folder name (default "kb")
   "report_dir": ".lint",          // where lint reports go, relative to the KB
-  "qmd_update_on_ingest": true    // refresh qmd's search index after every ingest
+  "qmd_update_on_ingest": true,   // refresh qmd's search index after every ingest
+  "extra_page_types": ["playbook"],  // schema extensions beyond the locked defaults
+  "transport": {                  // how agents read/write pages (installer detects;
+    "preferred": "obsidian-cli",  //   re-run detect_transport.py after changes)
+    "vault": "MyVault"
+  }
 }
 ```
 
-`INDEX.md` is regenerated by `recompile_index.py` (ships with kmd-ingest,
+**Transport:** when the KB lives in a registered Obsidian vault and the
+Obsidian CLI (ships with Obsidian 1.12+) is available, agents prefer it for
+page reads and writes — Obsidian's link handling and sync see every change
+immediately. `detect_transport.py` records the choice in `.kmd.json`, and
+it verifies the vault identity strictly (the CLI silently falls back to the
+active vault for unknown names — detection refuses to prefer the CLI unless
+Obsidian resolves this exact workspace). Everything falls back to plain
+filesystem writes, always.
+
+`index.md` is regenerated by `recompile_index.py` (ships with kmd-ingest,
 runs as the last step of every ingest). Nobody edits it by hand — the guard
 hook blocks that, and lint flags it when it's missing or out of date.
 
@@ -241,7 +261,7 @@ before.
 
 ## Search — wiring up qmd
 
-Agents can get by with `INDEX.md` and grep, but real search is much better.
+Agents can get by with `index.md` and grep, but real search is much better.
 [qmd](https://github.com/tobi/qmd) runs entirely on your machine — keyword
 and semantic search with reranking — and exposes `query` / `get` /
 `multi_get` / `status` tools over MCP.
@@ -286,7 +306,7 @@ feeds it to the reranker, and it noticeably improves results.
 **One thing to know about freshness:** qmd doesn't watch files — its index
 only moves when `qmd update` runs. By default that happens on your schedule
 (the cron jobs below), so a page created five minutes ago isn't in search
-yet. That's safe — the ingest rules always double-check `INDEX.md`, which
+yet. That's safe — the ingest rules always double-check `index.md`, which
 is regenerated on every write — but if you'd rather have search current at
 all times, set `"qmd_update_on_ingest": true` in `.kmd.json` and
 `recompile_index.py` will run `qmd update` after each ingest. It's opt-in
@@ -302,7 +322,7 @@ The KB stays healthy because check-ups are scheduled, not remembered:
 | Turn new sources into pages | `kmd-intake` | daily, or after you drop material |
 | Full health check + report | `kmd-librarian` | weekly |
 | Refresh search index | `qmd update && qmd embed` | with each of the above |
-| Regenerate `INDEX.md` | `recompile_index.py` (kmd-ingest) | with each of the above |
+| Regenerate `index.md` | `recompile_index.py` (kmd-ingest) | with each of the above |
 
 **Claude Code, built in:** use `/schedule` in a session — e.g. *"every
 Monday at 8am, run a full KB health check on ~/notes as the kmd-librarian
@@ -326,7 +346,7 @@ plugins:
 ```
 
 Two things worth knowing: the hooks are active in scheduled runs too (the
-plugin travels with the CLI), and every run ends with a `LOG.md` entry — so
+plugin travels with the CLI), and every run ends with a `log.md` entry — so
 the log doubles as a record of what automation did while you weren't
 looking.
 
@@ -384,6 +404,6 @@ registry on its own. Requires [uv](https://docs.astral.sh/uv/) and
 Python 3.12+ on PATH as `python3` — the scripts use only the standard
 library, nothing to install. The "nobody edited an existing source" check
 needs the KB under git and quietly says so when it isn't. One small edge:
-a brand-new KB in a custom-named folder isn't recognized until `SCHEMA.md`
+a brand-new KB in a custom-named folder isn't recognized until `schema.md`
 exists, so hook protection starts right after bootstrap (or immediately, if
 you add a `.kmd.json`).

@@ -10,13 +10,13 @@ extension applies.
 
 Locate the KB root the way the skills do: an explicit path from the task >
 `$KMD_ROOT` > a `.kmd.json` at the workspace root > a directory containing
-`SCHEMA.md`/`LOG.md` > the default `kb/`. Read `SCHEMA.md` before your first
+`schema.md`/`log.md` > the default `kb/`. Read `schema.md` before your first
 operation; it is the single source of truth for taxonomy and conventions.
 
 ## Your two operations
 
 **Query** (someone needs an answer from the KB):
-1. Route through `INDEX.md` first — it lists every page with a one-line
+1. Route through `index.md` first — it lists every page with a one-line
    summary. Supplement with search (qmd / `kb_search` if available, grep
    otherwise). Never scan directories.
 2. Read only the pages the routing points at.
@@ -30,7 +30,7 @@ operation; it is the single source of truth for taxonomy and conventions.
 Always through the **kmd-ingest** skill — load it and follow the checklist
 completely: classify, file raw material, dedup-search, condense, sweep
 cross-references, validate, log. Every write down to a one-line fix is an
-ingest. Never touch `INDEX.md` (script-generated), never edit anything under
+ingest. Never touch `index.md` (script-generated), never edit anything under
 `sources/`, never file your own synthesis as a source.
 
 ## Judgment defaults
@@ -45,4 +45,4 @@ ingest. Never touch `INDEX.md` (script-generated), never edit anything under
 
 Your final message is consumed by the caller: for queries, the answer with
 citations and a note on confidence/gaps; for writes, the files touched, the
-LOG.md line appended, and validation status. Raw facts, no pleasantries.
+log.md line appended, and validation status. Raw facts, no pleasantries.

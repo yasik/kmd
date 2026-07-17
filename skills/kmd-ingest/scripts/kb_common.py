@@ -8,7 +8,7 @@ subset the page schema uses (flat `key: value` pairs, inline `[a, b]` lists,
 `- item` block lists) — so the scripts run on any Python 3.12+ install.
 
 KB discovery is marker-based, never bound to a fixed path. A **KB root** is
-any directory containing `SCHEMA.md` or `LOG.md`. The **workspace** is the
+any directory containing `schema.md` or `log.md` (any case). The **workspace** is the
 directory containing the KB (vault root, repo root, or the KB itself for a
 standalone personal KB). An optional `.kmd.json` at the workspace root
 configures the layout:
@@ -57,8 +57,8 @@ REQUIRED_FIELDS: tuple[str, ...] = (
     "sources",
     "tags",
 )
-NON_PAGE_KB_FILES: frozenset[str] = frozenset({"INDEX.md", "LOG.md", "SCHEMA.md"})
-"""KB files that are not pages and are never validated as pages."""
+NON_PAGE_KB_FILES: frozenset[str] = frozenset({"index.md", "log.md", "schema.md"})
+"""KB system files (lowercase canonical; matched case-insensitively) — never pages."""
 
 CONFIG_FILENAME = ".kmd.json"
 DEFAULT_KB_DIRNAME = "kb"
@@ -83,7 +83,7 @@ class KBConfigError(KBError):
 class KB:
     """A resolved knowledge base.
 
-    Encapsulates the KB root (where SCHEMA.md/LOG.md/sources/ live), the
+    Encapsulates the KB root (where schema.md/log.md/sources/ live), the
     workspace that contains it (link resolution scope), and the parsed
     `.kmd.json` config. Instances are cheap value objects; nothing is cached
     from disk beyond the config dict.
@@ -93,6 +93,19 @@ class KB:
         self.root = Path(root).resolve()
         self.workspace = Path(workspace).resolve()
         self.config = config
+
+    @property
+    def page_types(self) -> frozenset[str]:
+        """Valid `type:` values: the locked defaults plus `.kmd.json` extras.
+
+        Extensions let an installation (or an agent in a multi-agent setup)
+        add its own knowledge hierarchies without forking the core schema:
+        `{"extra_page_types": ["playbook", "runbook"]}`.
+        """
+        extra = self.config.get("extra_page_types")
+        if isinstance(extra, list):
+            return PAGE_TYPES | {str(v) for v in cast(list[object], extra)}
+        return PAGE_TYPES
 
     @property
     def report_dir(self) -> Path:
@@ -115,6 +128,24 @@ class KB:
             return str(p.relative_to(self.workspace))
         except ValueError:
             return str(p)
+
+
+def find_system_file(directory: Path, name: str) -> Path | None:
+    """Find a KB system file by name, case-insensitively (index.md ~ INDEX.md).
+
+    Case-insensitive matching keeps KBs created before the lowercase
+    convention working on case-sensitive filesystems too.
+    """
+    candidate = directory / name
+    if candidate.is_file():
+        return candidate
+    try:
+        for entry in directory.iterdir():
+            if entry.is_file() and entry.name.lower() == name:
+                return entry
+    except OSError:
+        return None
+    return None
 
 
 def _load_config(directory: Path) -> dict[str, object]:
@@ -142,7 +173,10 @@ def _load_config(directory: Path) -> dict[str, object]:
 
 
 def _is_kb_root(directory: Path) -> bool:
-    return (directory / "SCHEMA.md").is_file() or (directory / "LOG.md").is_file()
+    return (
+        find_system_file(directory, "schema.md") is not None
+        or find_system_file(directory, "log.md") is not None
+    )
 
 
 def resolve_kb(directory: Path | str) -> KB | None:
@@ -150,7 +184,7 @@ def resolve_kb(directory: Path | str) -> KB | None:
 
     Args:
       directory: Candidate path — a workspace with a `.kmd.json` or a `kb/`
-        child, or a KB root itself (contains SCHEMA.md/LOG.md).
+        child, or a KB root itself (contains schema.md/log.md).
 
     Returns:
       The resolved KB, or None when the directory is neither.
@@ -205,7 +239,7 @@ def find_kb(explicit: str | None = None) -> KB:
         kb = resolve_kb(explicit)
         if kb is None:
             raise KBNotFoundError(
-                f"{explicit} is not a KB root (no SCHEMA.md/LOG.md), has no "
+                f"{explicit} is not a KB root (no schema.md/log.md), has no "
                 f"{CONFIG_FILENAME}, and contains no {DEFAULT_KB_DIRNAME}/ directory"
             )
         return kb
@@ -222,7 +256,7 @@ def find_kb(explicit: str | None = None) -> KB:
 
     raise KBNotFoundError(
         f"could not locate a KB — pass --kb <path>, set {KMD_ROOT_ENV_VAR}, or run inside "
-        f"a workspace with a {CONFIG_FILENAME}, a SCHEMA.md/LOG.md, or a kb/ directory"
+        f"a workspace with a {CONFIG_FILENAME}, a schema.md/log.md, or a kb/ directory"
     )
 
 
@@ -351,9 +385,9 @@ def iter_kb_pages(kb: KB) -> list[Path]:
         rel = p.relative_to(kb.root)
         if _has_hidden_part(rel):
             continue
-        if rel.parts and rel.parts[0] == "sources":
+        if rel.parts and rel.parts[0] in ("sources", "assets"):
             continue
-        if p.name in NON_PAGE_KB_FILES:
+        if p.name.lower() in NON_PAGE_KB_FILES:
             continue
         pages.append(p)
 
@@ -495,12 +529,18 @@ def validate_page_data(
             "path is under sources/ — sources are append-only raw material, "
             "never validated or edited as pages"
         ], []
-    if page_path.name == "INDEX.md":
-        return ["INDEX.md is script-generated — never written by hand"], []
-    if page_path.name in ("LOG.md", "SCHEMA.md"):
+
+    if rel.parts and rel.parts[0] == "assets":
         return [
-            f"{page_path.name} is not a page (LOG.md is append-only via kb_log.py; "
-            "SCHEMA.md is the owner's convention doc)"
+            "path is under assets/ — derived artifacts (charts, decks, images) "
+            "are not pages and are embedded from pages instead"
+        ], []
+    if page_path.name.lower() == "index.md":
+        return ["index.md is script-generated — never written by hand"], []
+    if page_path.name.lower() in ("log.md", "schema.md"):
+        return [
+            f"{page_path.name} is not a page (log.md is append-only via kb_log.py; "
+            "schema.md is the owner's convention doc)"
         ], []
     if not page_path.exists():
         return ["file does not exist"], []
@@ -514,8 +554,8 @@ def validate_page_data(
             errors.append(f"missing required frontmatter field: {field}")
 
     page_type = frontmatter.get("type")
-    if isinstance(page_type, str) and page_type not in PAGE_TYPES:
-        errors.append(f"type '{page_type}' not one of {sorted(PAGE_TYPES)}")
+    if isinstance(page_type, str) and page_type not in kb.page_types:
+        errors.append(f"type '{page_type}' not one of {sorted(kb.page_types)}")
 
     confidence = frontmatter.get("confidence")
     if isinstance(confidence, str) and confidence not in CONFIDENCE_LEVELS:
@@ -577,7 +617,7 @@ def _page_snippet(body: str, max_chars: int = 90) -> str:
 
 
 def render_index(kb: KB) -> str:
-    """Render INDEX.md content from page files — the routing layer.
+    """Render index.md content from page files — the routing layer.
 
     Deterministic (sorted, no generation timestamps) so lint can compare the
     on-disk file against a fresh render to detect staleness. One line per
@@ -614,8 +654,8 @@ def render_index(kb: KB) -> str:
 
 
 def index_status(kb: KB) -> str:
-    """INDEX.md health: 'current', 'missing', or 'stale'."""
-    index_path = kb.root / "INDEX.md"
+    """index.md health: 'current', 'missing', or 'stale'."""
+    index_path = find_system_file(kb.root, "index.md") or (kb.root / "index.md")
     if not index_path.exists():
         return "missing"
     if index_path.read_text(encoding="utf-8") != render_index(kb):
@@ -624,8 +664,8 @@ def index_status(kb: KB) -> str:
 
 
 def parse_log_dates(kb: KB) -> set[str]:
-    """Dates (ISO strings) that have at least one LOG.md entry."""
-    log_path = kb.root / "LOG.md"
+    """Dates (ISO strings) that have at least one log.md entry."""
+    log_path = find_system_file(kb.root, "log.md") or (kb.root / "log.md")
     if not log_path.exists():
         return set()
     return set(

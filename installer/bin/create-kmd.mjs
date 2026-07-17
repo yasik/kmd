@@ -20,36 +20,22 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
-import { stdin, stdout } from "node:process";
-import { createInterface } from "node:readline/promises";
+import { stdout } from "node:process";
 import { fileURLToPath } from "node:url";
 
-// The schema template has one source of truth: the kmd-ingest skill. In the
-// published npm package it is copied into assets/ by the prepack script; in
-// a repo checkout the fallback reads the canonical file through the plugin's
-// skills/ symlink. There is no committed duplicate.
-const SCHEMA_TEMPLATE_CANDIDATES = [
-  new URL("../assets/schema-template.md", import.meta.url),
-  new URL(
-    "../../skills/kmd-ingest/references/schema-template.md",
-    import.meta.url,
-  ),
-].map(fileURLToPath);
-
-const SCHEMA_TEMPLATE_PATH = SCHEMA_TEMPLATE_CANDIDATES.find((path) =>
-  existsSync(path),
-);
-
-const MARKETPLACE_REPO = "yasik/kmd";
-const PLUGIN_SPEC = "kmd@kmd";
-
-const color = {
-  bold: (s) => `[1m${s}[0m`,
-  dim: (s) => `[2m${s}[0m`,
-  green: (s) => `[32m${s}[0m`,
-  yellow: (s) => `[33m${s}[0m`,
-  cyan: (s) => `[36m${s}[0m`,
-};
+import {
+  actions,
+  ask,
+  closePrompter,
+  color,
+  confirm,
+  hasCommand,
+  heading,
+  initPrompter,
+  note,
+  record,
+  run,
+} from "./lib/ui.mjs";
 
 const HELP = `
 ${color.bold("create-kmd")} — set up a kmd knowledge base
@@ -132,124 +118,24 @@ function parseArgs(argv) {
   return options;
 }
 
-/**
- * Buffered line reader for prompts.
- *
- * `readline/promises.question()` loses buffered lines with piped stdin and
- * leaves its promise unsettled on EOF — node then exits 0 mid-setup. This
- * reader owns the `line` event stream instead: answers arriving early are
- * queued, and EOF resolves every pending and future read as `null`, which
- * `ask`/`confirm` translate to "accept the default". Prompts are written to
- * stdout directly; terminal echo is left to the tty driver.
- */
-class Prompter {
-  constructor() {
-    this.pendingLines = [];
-    this.waiters = [];
-    this.closed = false;
-    this.rl = createInterface({ input: stdin });
-    this.rl.on("line", (line) => {
-      const waiter = this.waiters.shift();
-      if (waiter) {
-        waiter(line);
-        return;
-      }
-      this.pendingLines.push(line);
-    });
-    this.rl.on("close", () => {
-      this.closed = true;
-      for (const waiter of this.waiters.splice(0)) waiter(null);
-    });
-  }
+// The schema template has one source of truth: the kmd-ingest skill. In the
+// published npm package it is copied into assets/ by the prepack script; in
+// a repo checkout the fallback reads the canonical file through the plugin's
+// skills/ symlink. There is no committed duplicate.
+const SCHEMA_TEMPLATE_CANDIDATES = [
+  new URL("../assets/schema-template.md", import.meta.url),
+  new URL(
+    "../../skills/kmd-ingest/references/schema-template.md",
+    import.meta.url,
+  ),
+].map(fileURLToPath);
 
-  /** Next input line, or null once stdin has ended. */
-  next() {
-    if (this.pendingLines.length > 0)
-      return Promise.resolve(this.pendingLines.shift());
-    if (this.closed) return Promise.resolve(null);
-    return new Promise((resolveLine) => this.waiters.push(resolveLine));
-  }
+const SCHEMA_TEMPLATE_PATH = SCHEMA_TEMPLATE_CANDIDATES.find((path) =>
+  existsSync(path),
+);
 
-  close() {
-    this.rl.close();
-  }
-}
-
-/** Interactive prompt session; created once, null in --yes mode. */
-let prompter = null;
-
-/**
- * Ask a free-text question; returns the default in --yes mode, on empty
- * input, or after stdin EOF.
- */
-async function ask(question, defaultValue) {
-  if (prompter === null) return defaultValue;
-  const suffix = defaultValue ? color.dim(` (${defaultValue})`) : "";
-  stdout.write(`  ${question}${suffix} `);
-  const line = await prompter.next();
-  if (line === null) {
-    stdout.write(color.dim("(end of input — using default)\n"));
-    return defaultValue;
-  }
-  const answer = line.trim();
-  return answer === "" ? defaultValue : answer;
-}
-
-/** Ask a yes/no question; returns the default in --yes mode or after EOF. */
-async function confirm(question, defaultValue) {
-  if (prompter === null) return defaultValue;
-  const hint = defaultValue ? "Y/n" : "y/N";
-  stdout.write(`  ${question} ${color.dim(`[${hint}]`)} `);
-  const line = await prompter.next();
-  if (line === null) {
-    stdout.write(color.dim("(end of input — using default)\n"));
-    return defaultValue;
-  }
-  const answer = line.trim().toLowerCase();
-  if (answer === "") return defaultValue;
-  return answer === "y" || answer === "yes";
-}
-
-/** Check whether an executable exists on PATH. */
-function hasCommand(command) {
-  const probe = process.platform === "win32" ? "where" : "which";
-  return spawnSync(probe, [command], { stdio: "ignore" }).status === 0;
-}
-
-/**
- * Run an external command with inherited stdio so the user sees its output.
- * Returns true on exit code 0; failures are reported, never thrown — every
- * step must degrade to manual instructions rather than abort the setup.
- */
-function run(command, args, cwd) {
-  stdout.write(color.dim(`  $ ${command} ${args.join(" ")}\n`));
-  const result = spawnSync(command, args, { stdio: "inherit", cwd });
-  if (result.status !== 0) {
-    stdout.write(
-      color.yellow(
-        `  command failed (exit ${result.status ?? "?"}) — continuing\n`,
-      ),
-    );
-    return false;
-  }
-  return true;
-}
-
-/** Actions performed, collected for the final summary. */
-const actions = [];
-
-function record(message) {
-  actions.push(message);
-  stdout.write(`  ${color.green("+")} ${message}\n`);
-}
-
-function note(message) {
-  stdout.write(`  ${color.yellow("•")} ${message}\n`);
-}
-
-function heading(title) {
-  stdout.write(`\n${color.bold(color.cyan(title))}\n`);
-}
+const MARKETPLACE_REPO = "yasik/kmd";
+const PLUGIN_SPEC = "kmd@kmd";
 
 /**
  * Assemble a production SCHEMA.md from the template: the template-note block
@@ -300,9 +186,9 @@ async function scaffold(options) {
     options.org ||
     (await confirm("Enable the org extension (agent organizations)?", false));
 
-  const schemaPath = join(kbRoot, "SCHEMA.md");
+  const schemaPath = join(kbRoot, "schema.md");
   if (existsSync(schemaPath)) {
-    note("SCHEMA.md already exists — kept as is");
+    note("schema.md already exists — kept as is");
   } else if (SCHEMA_TEMPLATE_PATH === undefined) {
     note(
       "schema template not found (broken package?) — copy it manually from " +
@@ -314,7 +200,7 @@ async function scaffold(options) {
       assembleSchema(readFileSync(SCHEMA_TEMPLATE_PATH, "utf8"), org),
     );
     record(
-      `${kbDir}/SCHEMA.md installed${org ? ", org section included" : ""}`,
+      `${kbDir}/schema.md installed${org ? ", org section included" : ""}`,
     );
   }
   const configPath = join(workspace, ".kmd.json");
@@ -331,7 +217,51 @@ async function scaffold(options) {
     record(`.kmd.json written (${org ? "org mode" : "custom KB folder"})`);
   }
 
+  detectTransport(workspace);
+
   return { workspace, kbRoot, kbDir };
+}
+
+/**
+ * Detect the page transport (Obsidian CLI vs filesystem) and record it in
+ * .kmd.json. Strict about vault identity: obsidian-cli silently falls back
+ * to the ACTIVE vault for unknown names, so the CLI qualifies only when
+ * Obsidian resolves this workspace's name to exactly this path.
+ */
+function detectTransport(workspace) {
+  let transport = {
+    preferred: "filesystem",
+    detected: new Date().toISOString().slice(0, 10),
+  };
+
+  if (hasCommand("obsidian-cli")) {
+    const vaultName = basename(workspace);
+    const res = spawnSync("obsidian-cli", ["vault", `vault=${vaultName}`], {
+      encoding: "utf8",
+      timeout: 15000,
+    });
+    const pathLine = (res.stdout ?? "")
+      .split("\n")
+      .find((l) => l.startsWith("path\t"));
+    const resolved = pathLine?.split("\t")[1]?.trim();
+    if (res.status === 0 && resolved === workspace) {
+      transport = {
+        preferred: "obsidian-cli",
+        vault: vaultName,
+        detected: transport.detected,
+      };
+    }
+  }
+
+  const configPath = join(workspace, ".kmd.json");
+  const config = existsSync(configPath)
+    ? JSON.parse(readFileSync(configPath, "utf8"))
+    : {};
+  config.transport = transport;
+  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+  record(
+    `transport: ${transport.preferred}${transport.vault ? ` (vault: ${transport.vault})` : ""} — recorded in .kmd.json`,
+  );
 }
 
 /** Step 2 — git baseline (the sources/ append-only check compares against it). */
@@ -429,6 +359,19 @@ async function setupPlugins(options) {
   }
 
   if (
+    clis.hasClaude &&
+    (await confirm(
+      "Install kepano/obsidian-skills into Claude Code? (official Obsidian formatting + CLI skills, by Obsidian's CEO)",
+      true,
+    ))
+  ) {
+    run("claude", ["plugin", "marketplace", "add", "kepano/obsidian-skills"]);
+    if (run("claude", ["plugin", "install", "obsidian@obsidian-skills"])) {
+      record("obsidian-skills plugin installed in Claude Code");
+    }
+  }
+
+  if (
     clis.hasCodex &&
     (await confirm("Install the kmd plugin into Codex?", true))
   ) {
@@ -467,6 +410,25 @@ async function setupPlugins(options) {
       ])
     ) {
       record(`kmd-ingest + kmd-lint installed for ${harness.name}`);
+    }
+    if (
+      run("npx", [
+        "-y",
+        "skills",
+        "add",
+        "kepano/obsidian-skills",
+        "--skill",
+        "obsidian-markdown",
+        "--skill",
+        "obsidian-cli",
+        "-a",
+        harness.skillsId,
+        "-g",
+      ])
+    ) {
+      record(
+        `obsidian-markdown + obsidian-cli skills installed for ${harness.name}`,
+      );
     }
   }
 
@@ -701,7 +663,7 @@ async function main() {
   );
 
   if (!options.yes) {
-    prompter = new Prompter();
+    initPrompter();
   }
 
   try {
@@ -711,7 +673,7 @@ async function main() {
     await setupQmd(options, kbRoot, workspace, clis);
     printSummary(kbDir);
   } finally {
-    prompter?.close();
+    closePrompter();
   }
 }
 

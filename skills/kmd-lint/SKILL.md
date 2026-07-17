@@ -15,9 +15,12 @@ expensive, so spent only where scripts can't reach).
 
 ## Before you start
 
-Locate the KB root the same way kmd-ingest does: a path you were given >
+Locate the KB root and transport the same way kmd-ingest does (its
+`references/obsidian-cli-transport.md` covers the Obsidian CLI, whose
+`backlinks`/`orphans`/`unresolved` commands can corroborate graph
+findings when available): a path you were given >
 `$KMD_ROOT` > `.kmd.json` at the workspace root > a directory containing
-`SCHEMA.md`/`LOG.md` > the default `kb/`. The script's `--kb` flag implements
+`schema.md`/`log.md` > the default `kb/`. The script's `--kb` flag implements
 this resolution. Then check for the **org extension**: if `.kmd.json` declares
 an `"org"` key or the workspace has `_charter/ORG.md`, read
 [references/org-extension.md](references/org-extension.md) — it changes how
@@ -35,7 +38,7 @@ provenance rule), modified files under `sources/` (append-only violation,
 via git — when the KB is not under git the script says so explicitly rather
 than implying coverage), unreferenced sources (un-ingested intake), orphan
 pages, page updates with no LOG entry, oversized pages, and a missing or
-stale `INDEX.md` (fix: `recompile_index.py` from kmd-ingest). With
+stale `index.md` (fix: `recompile_index.py` from kmd-ingest). With
 `--report` it writes a
 report skeleton to `<kb>/.lint/<date>-mechanical.md` (or the `report_dir`
 configured in `.kmd.json`) with empty **Judgment findings** and **Resolution**
@@ -44,14 +47,19 @@ programmatically.
 
 ## Phase 2 — judgment passes (what scripts cannot catch)
 
-Read `INDEX.md` (or list pages) to plan the passes; read full pages only
+Read `index.md` (or list pages) to plan the passes; read full pages only
 where a pass flags something. Four passes, in order of value:
 
 1. **Contradictions.** Cluster pages that speak about the same entity/topic
    (index descriptions and shared tags are good signals). Compare their
    claims. Two pages asserting incompatible facts is the highest-severity
    finding lint can produce — a KB that contradicts itself is worse than no
-   KB, because it answers confidently either way.
+   KB, because it answers confidently either way. When you find one, mark
+   **both** pages with the `> [!contradiction]` callout per schema.md's
+   framework (each side's claim, what would resolve it) — that marking IS a
+   direct fix; the resolution itself is an open item unless dates, context,
+   or primary sources settle it on the spot. The mechanical pass counts
+   unresolved callouts on every future run.
 2. **Staleness.** Pages whose `sources:` have newer material filed in
    `sources/` that they don't yet reflect; pages on volatile topics with
    old `updated` dates; claims with dates in them that have since passed.
@@ -102,7 +110,7 @@ bundled here — the log line matters more than which copy writes it.)
   judgment; substantive rewrites are re-ingests
 - Touch anything under `sources/` (append-only, even for lint) beyond
   restoring a tampered file to its committed state
-- Hand-edit `INDEX.md` (script-generated) or write LOG.md by hand
+- Hand-edit `index.md` (script-generated) or write log.md by hand
 - Silently "fix" a contradiction by picking a side — surface it; the owner
   or a re-ingest against sources decides
 

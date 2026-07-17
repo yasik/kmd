@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Regenerate the KB's INDEX.md from page files — the routing layer.
+"""Regenerate the KB's index.md from page files — the routing layer.
 
-INDEX.md lists every page with its type, updated date, and a one-line
+index.md lists every page with its type, updated date, and a one-line
 snippet, grouped by directory. It is script-owned: agents and humans never
 hand-edit it (the kmd guard hook denies such writes), they run this instead —
 typically as the last step of every ingest and alongside scheduled hygiene.
@@ -34,7 +34,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 # isort: off
-from kb_common import KB, KBError, find_kb, index_status, render_index  # noqa: E402
+from kb_common import (  # noqa: E402
+    KB,
+    KBError,
+    find_kb,
+    find_system_file,
+    index_status,
+    render_index,
+)
 
 # isort: on
 
@@ -102,20 +109,25 @@ def main() -> None:
 
     status = index_status(kb)
     if args.check:
-        print(f"INDEX.md is {status}")
+        print(f"index.md is {status}")
         sys.exit(0 if status == "current" else 1)
 
+    # migrate an uppercase INDEX.md to the lowercase canonical name on touch
+    existing = find_system_file(kb.root, "index.md")
+    if existing is not None and existing.name != "index.md":
+        existing.rename(kb.root / "index.md")
+
     if status == "current":
-        print("INDEX.md already current")
+        print("index.md already current")
     else:
-        (kb.root / "INDEX.md").write_text(render_index(kb), encoding="utf-8")
+        (kb.root / "index.md").write_text(render_index(kb), encoding="utf-8")
         print(
-            f"INDEX.md {'created' if status == 'missing' else 'updated'} "
-            f"({kb.rel(kb.root / 'INDEX.md')})"
+            f"index.md {'created' if status == 'missing' else 'updated'} "
+            f"({kb.rel(kb.root / 'index.md')})"
         )
 
     # Page bodies can change without the index changing, so the search
-    # refresh runs regardless of INDEX.md status.
+    # refresh runs regardless of index.md status.
     refresh_qmd(kb)
 
 

@@ -11,7 +11,7 @@ synthesized page.
 
 Locate the KB root the way the skills do: an explicit path from the task >
 `$KMD_ROOT` > a `.kmd.json` at the workspace root > a directory containing
-`SCHEMA.md`/`LOG.md` > the default `kb/`.
+`schema.md`/`log.md` > the default `kb/`.
 
 ## Protocol
 

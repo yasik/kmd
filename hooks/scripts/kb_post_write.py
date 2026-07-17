@@ -2,14 +2,14 @@
 """PostToolUse validator for KB page writes — immediate feedback loop.
 
 When a Write/Edit lands on a KB *page* (inside a detected KB root, not
-sources/, not INDEX/LOG/SCHEMA), this runs the kmd-ingest validator on it:
+sources/, not index/log/schema), this runs the kmd-ingest validator on it:
 
   - validation errors  -> decision "block" with the exact errors, so the
     model fixes the page immediately instead of leaving it for lint
   - valid page         -> a one-line additionalContext reminder of the two
     protocol steps that are easiest to forget (cross-reference sweep + log)
 
-KB detection is marker/config-based (SCHEMA.md/LOG.md markers or .kmd.json),
+KB detection is marker/config-based (schema.md/log.md markers or .kmd.json),
 so the KB directory can be named anything. Reuses the canonical validator
 from the bundled kmd-ingest skill — one implementation, three enforcement
 surfaces (script, hook, lint).
@@ -60,7 +60,7 @@ def is_kb_page(path: str, kb: KB) -> bool:
         return False
     if rel.parts and rel.parts[0] == "sources":
         return False
-    return rel.name not in ("INDEX.md", "LOG.md", "SCHEMA.md")
+    return rel.name.lower() not in ("index.md", "log.md", "schema.md")
 
 
 def main() -> None:

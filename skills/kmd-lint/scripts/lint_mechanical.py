@@ -9,9 +9,11 @@ Checks:
   W unreferenced-source  file in sources/ cited by no page — un-ingested
                       intake work
   W orphan-page       page with zero inbound wikilinks from other pages
-  W unlogged-changes  pages updated on a date with no LOG.md entry that day
+  W unlogged-changes  pages updated on a date with no log.md entry that day
   W oversized-page    page body > --max-lines (default 300) — split candidate
-  W index-drift       INDEX.md missing or out of date vs a fresh render —
+  W open-contradiction  page carries [!contradiction] callouts awaiting
+                      resolution (see the contradiction framework in schema.md)
+  W index-drift       index.md missing or out of date vs a fresh render —
                       run recompile_index.py (kmd-ingest skill)
 
 When the sources append-only check cannot run (KB not under git), that gap
@@ -133,6 +135,18 @@ def check_pages(
                     )
                 )
 
+        open_contradictions = body.count("[!contradiction]")
+        if open_contradictions:
+            findings.append(
+                Finding(
+                    "open-contradiction",
+                    Severity.WARNING,
+                    rel,
+                    f"{open_contradictions} unresolved contradiction callout(s) — "
+                    "resolve via dates/context/primary sources, then remove the callout",
+                )
+            )
+
         n_lines = body.count("\n") + 1
         if n_lines > max_lines:
             findings.append(
@@ -234,7 +248,7 @@ def _check_source_immutability(kb: KB) -> list[Finding]:
 
 
 def check_index(kb: KB) -> list[Finding]:
-    """Flag a missing or stale INDEX.md (the script-owned routing layer)."""
+    """Flag a missing or stale index.md (the script-owned routing layer)."""
     status = index_status(kb)
     if status == "current":
         return []
@@ -245,7 +259,7 @@ def check_index(kb: KB) -> list[Finding]:
         Finding(
             "index-drift",
             Severity.WARNING,
-            "INDEX.md",
+            "index.md",
             f"{detail} — run recompile_index.py (kmd-ingest skill)",
         )
     ]
@@ -314,7 +328,7 @@ def check_orphans(meta: dict[str, PageMeta]) -> list[Finding]:
 def check_log_consistency(
     kb: KB, meta: dict[str, PageMeta], window_days: int
 ) -> list[Finding]:
-    """Flag recently-updated pages whose update date has no LOG.md entry."""
+    """Flag recently-updated pages whose update date has no log.md entry."""
     log_dates = parse_log_dates(kb)
     cutoff = (date.today() - timedelta(days=window_days)).isoformat()
 
@@ -333,7 +347,7 @@ def check_log_consistency(
         Finding(
             "unlogged-changes",
             Severity.WARNING,
-            "LOG.md",
+            "log.md",
             f"pages updated {day} but no LOG entry that day: " + ", ".join(pages),
         )
         for day, pages in sorted(missing.items())

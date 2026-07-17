@@ -1,20 +1,28 @@
 #!/usr/bin/env python3
-r"""Append a canonical entry to the KB's LOG.md.
+r"""Append a canonical entry to the KB's log.md.
 
-The log format is parsed by lint and by humans skimming history, so entries
-are always written through this script — never by hand. One line per
+The log format is parsed by lint and skimmed by humans, so entries are
+always written through this script — never by hand. One entry per
 operation:
 
-    ## [2026-07-07] ingest | Raft consensus distilled from whitepaper (yasik)
-      pages: concepts/raft-consensus.md, sources/raft-paper.md
+    ## [2026-07-16] ingest | GPU Memory Math for LLMs
+    - Source: `sources/GPU Memory Math for LLMs (2026 Edition).md`
+    - Summary: [[GPU memory math for LLMs]]
+    - Pages created: [[GPU memory math for LLMs]]
+    - Pages updated: [[LLM inference hardware planning]]
+    - Key insight: VRAM planning is dominated by KV cache, not weights.
+    - By: kmd-intake
+
+Only the header and `By:` are mandatory; other bullets appear when their
+flags are given. Page names are written as [[wikilinks]] (pass titles or
+paths — `.md` and directories are stripped).
 
 Typical usage example:
 
-  python3 kb_log.py --action ingest --title "..." --agent yasik \\
-      --pages concepts/x.md sources/y.md
-
---agent is the author identity: your name for a personal KB, the agent id in
-an org installation. Prints the appended entry on success.
+  python3 kb_log.py --action ingest --title "GPU Memory Math" \\
+      --agent kmd-intake --source "sources/GPU Memory Math.md" \\
+      --created "GPU memory math for LLMs" \\
+      --insight "VRAM planning is dominated by KV cache, not weights."
 """
 
 import argparse
@@ -25,11 +33,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 # isort: off
-from kb_common import KBError, find_kb, today_iso  # noqa: E402
+from kb_common import KB, KBError, find_system_file, find_kb, today_iso  # noqa: E402
 
 # isort: on
 
-LOG_HEADER = """# KB Log
+LOG_HEADER = """# KB log
 
 Append-only journal of every KB operation. Entries are written by
 `kb_log.py` (kmd-ingest / kmd-lint skills) — never by hand.
@@ -37,7 +45,7 @@ Append-only journal of every KB operation. Entries are written by
 
 
 class LogAction(StrEnum):
-    """Operation kinds a LOG.md entry can record."""
+    """Operation kinds a log entry can record."""
 
     INGEST = "ingest"
     EDIT = "edit"
@@ -45,19 +53,54 @@ class LogAction(StrEnum):
     QUERY = "query"
 
 
-def format_entry(action: str, title: str, agent: str, pages: list[str]) -> str:
-    """Render one canonical log entry (the exact format lint parses)."""
-    entry = f"## [{today_iso()}] {action} | {title} ({agent})"
-    if pages:
-        entry += "\n  pages: " + ", ".join(pages)
-    return entry
+def _wikilink(name: str) -> str:
+    """Render a page reference as [[Title]] (strip dirs and .md)."""
+    cleaned = name.strip()
+    stem = Path(cleaned).stem if cleaned.endswith(".md") else cleaned
+    return f"[[{Path(stem).name}]]"
+
+
+def format_entry(args: argparse.Namespace) -> str:
+    """Render one canonical log entry (the exact shape lint parses)."""
+    lines = [f"## [{today_iso()}] {args.action} | {args.title}"]
+
+    if args.source:
+        lines.append(f"- Source: `{args.source}`")
+    if args.summary:
+        lines.append(f"- Summary: {_wikilink(args.summary)}")
+    if args.created:
+        lines.append(
+            "- Pages created: " + ", ".join(_wikilink(p) for p in args.created)
+        )
+    if args.updated:
+        lines.append(
+            "- Pages updated: " + ", ".join(_wikilink(p) for p in args.updated)
+        )
+    if args.insight:
+        lines.append(f"- Key insight: {args.insight}")
+    lines.append(f"- By: {args.agent}")
+
+    return "\n".join(lines)
+
+
+def resolve_log_path(kb: KB) -> Path:
+    """The KB's log file, migrating an uppercase LOG.md to log.md on touch."""
+    existing = find_system_file(kb.root, "log.md")
+    canonical = kb.root / "log.md"
+
+    if existing is not None and existing.name != "log.md":
+        existing.rename(canonical)
+        return canonical
+    return existing or canonical
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--action", required=True, choices=[a.value for a in LogAction])
     parser.add_argument(
-        "--title", required=True, help="short human-readable summary of the operation"
+        "--title",
+        required=True,
+        help="what happened — for ingests, usually the source title",
     )
     parser.add_argument(
         "--agent",
@@ -65,8 +108,26 @@ def main() -> None:
         help="author identity (your name, or the agent id in org installations)",
     )
     parser.add_argument(
-        "--pages", nargs="*", default=[], help="paths touched (KB-relative preferred)"
+        "--source", default=None, help="KB-relative source path (e.g. sources/foo.md)"
     )
+    parser.add_argument(
+        "--summary",
+        default=None,
+        help="the primary page for this operation (wikilinked)",
+    )
+    parser.add_argument(
+        "--created",
+        nargs="*",
+        default=[],
+        help="pages created (titles or paths; wikilinked)",
+    )
+    parser.add_argument(
+        "--updated",
+        nargs="*",
+        default=[],
+        help="pages updated (titles or paths; wikilinked)",
+    )
+    parser.add_argument("--insight", default=None, help="one sentence on what is new")
     parser.add_argument("--kb", default=None, help="KB root or workspace path")
     args = parser.parse_args()
 
@@ -76,8 +137,8 @@ def main() -> None:
     except KBError as exc:
         sys.exit(f"error: {exc}")
 
-    log_path = kb.root / "LOG.md"
-    entry = format_entry(args.action, args.title, args.agent, args.pages)
+    log_path = resolve_log_path(kb)
+    entry = format_entry(args)
 
     if not log_path.exists():
         log_path.write_text(LOG_HEADER + "\n" + entry + "\n", encoding="utf-8")

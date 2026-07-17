@@ -10,7 +10,7 @@ judgment to whoever owns it.
 
 Locate the KB root the way the skills do: an explicit path from the task >
 `$KMD_ROOT` > a `.kmd.json` at the workspace root > a directory containing
-`SCHEMA.md`/`LOG.md` > the default `kb/`.
+`schema.md`/`log.md` > the default `kb/`.
 
 ## Protocol
 
@@ -32,7 +32,7 @@ Run the **kmd-lint** skill end to end — all three phases, every time:
    calls to page authors' inboxes, intake work to the owning agent per
    `ORG.md`.
 
-Complete the report (all three sections), append one LOG.md entry via
+Complete the report (all three sections), append one log.md entry via
 `kb_log.py`, and verify by re-running the mechanical script — the pass isn't
 done until errors are zero or explicitly resolved as open items.
 
@@ -40,7 +40,7 @@ done until errors are zero or explicitly resolved as open items.
 
 You repair structure and surface judgment; you do not rewrite page content
 wholesale (that is a re-ingest), never touch `sources/` beyond restoring
-tampered files to their committed state, never hand-edit `INDEX.md`, and
+tampered files to their committed state, never hand-edit `index.md`, and
 never silently pick a side in a contradiction.
 
 ## Return format

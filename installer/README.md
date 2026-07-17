@@ -12,14 +12,17 @@ npx create-kmd --yes      # accept all defaults, no prompts
 
 ## What it sets up
 
-1. **Knowledge base** — a production `SCHEMA.md` assembled from the template
+1. **Knowledge base** — a production `schema.md` assembled from the template
    (template language stripped; org section only in org mode), `sources/`,
+   and a page-transport record in `.kmd.json` (Obsidian CLI when the
+   workspace is a verified registered vault, filesystem otherwise),
    and a `.kmd.json` when the KB folder isn't named `kb/` or org mode is on.
    Detects Obsidian vaults and scaffolds the KB as a folder inside them.
 2. **Git baseline** — offers `git init` + initial commit; the `sources/`
    append-only lint check compares against committed state.
-3. **Agent plugins** — detects `claude` / `codex` on PATH and installs the
-   kmd plugin from the `yasik/kmd` marketplace.
+3. **Agent plugins & skills** — detects agent CLIs and installs the kmd
+   plugin (Claude Code / Codex), kepano's official obsidian-skills
+   (formatting + CLI reference), and the kmd skills for other harnesses.
 4. **Search (qmd)** — installs [qmd](https://github.com/tobi/qmd) if wanted,
    creates a collection over the KB, adds reranker context, builds the BM25
    index, optionally enables semantic search (~2GB of local models, opt-in),
