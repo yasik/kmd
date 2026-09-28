@@ -6,8 +6,8 @@ Checks:
   E invalid-page      frontmatter missing/invalid per the page schema
   E source-modified   tracked file under sources/ has uncommitted
                       modifications (append-only violation; needs git)
-  W unreferenced-source  file in sources/ cited by no page — un-ingested
-                      intake work
+  W unreferenced-source  file in sources/ cited by no page and not closed
+                      by a `skip` log entry — un-ingested intake work
   W orphan-page       page with zero inbound wikilinks from other pages
   W unlogged-changes  pages updated on a date with no log.md entry that day
   W oversized-page    page body > --max-lines (default 300) — split candidate
@@ -57,6 +57,7 @@ from kb_common import (  # noqa: E402
     iter_sources,
     link_resolves,
     parse_log_dates,
+    parse_skipped_sources,
     read_page,
     today_iso,
     validate_page_data,
@@ -173,7 +174,11 @@ def check_sources(kb: KB, meta: dict[str, PageMeta]) -> list[Finding]:
                 cited.update(t.lower() for t in extract_wikilinks(entry))
         cited.update(t.lower() for t in page_meta.links)
 
+    skipped = parse_skipped_sources(kb)
+
     for source in iter_sources(kb):
+        if source.relative_to(kb.root).as_posix().lower() in skipped:
+            continue
         keys = {
             source.stem.lower(),
             str(source.relative_to(kb.root).with_suffix("")).replace("\\", "/").lower(),

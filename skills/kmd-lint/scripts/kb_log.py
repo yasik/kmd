@@ -15,7 +15,11 @@ operation:
 
 Only the header and `By:` are mandatory; other bullets appear when their
 flags are given. Page names are written as [[wikilinks]] (pass titles or
-paths — `.md` and directories are stripped).
+paths — `.md` and directories are stripped) and must name existing files,
+so prose passed to a page flag fails loudly instead of logging a broken
+link. A `skip` entry closes a source that intake reviewed and declined:
+it needs `--source` (an existing file under sources/) and a reason in
+`--title`; lint stops reporting that source as unreferenced.
 
 Typical usage example:
 
@@ -23,6 +27,10 @@ Typical usage example:
       --agent kmd-intake --source "sources/GPU Memory Math.md" \\
       --created "GPU memory math for LLMs" \\
       --insight "VRAM planning is dominated by KV cache, not weights."
+
+  python3 kb_log.py --action skip --agent kmd-intake \\
+      --title "LLM summary with unverifiable quotes" \\
+      --source "sources/Talk summary.md"
 """
 
 import argparse
@@ -33,7 +41,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 # isort: off
-from kb_common import KB, KBError, find_system_file, find_kb, today_iso  # noqa: E402
+from kb_common import (  # noqa: E402
+    KB,
+    KBError,
+    build_link_index,
+    find_kb,
+    find_system_file,
+    link_resolves,
+    today_iso,
+)
 
 # isort: on
 
@@ -51,6 +67,11 @@ class LogAction(StrEnum):
     EDIT = "edit"
     LINT = "lint"
     QUERY = "query"
+    SKIP = "skip"
+
+
+class LogArgumentError(Exception):
+    """A flag names something that does not exist in the KB."""
 
 
 def _wikilink(name: str) -> str:
@@ -83,6 +104,34 @@ def format_entry(args: argparse.Namespace) -> str:
     return "\n".join(lines)
 
 
+def check_page_refs(kb: KB, args: argparse.Namespace) -> None:
+    """Raise LogArgumentError unless every page flag names an existing file."""
+    link_index = build_link_index(kb)
+    refs = [("summary", args.summary)] if args.summary else []
+    refs += [("created", p) for p in args.created]
+    refs += [("updated", p) for p in args.updated]
+    for flag, ref in refs:
+        if not link_resolves(ref, link_index):
+            raise LogArgumentError(
+                f"--{flag} '{ref}' is not an existing page — page flags take "
+                "titles or paths; put prose in --insight"
+            )
+
+
+def normalize_skip_source(kb: KB, source: str | None) -> str:
+    """The KB-relative path of the source a skip entry closes."""
+    if not source:
+        raise LogArgumentError("--action skip requires --source")
+    path = Path(source)
+    candidates = [path] if path.is_absolute() else [kb.root / path, Path.cwd() / path]
+    sources_dir = (kb.root / "sources").resolve()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved.is_file() and resolved.is_relative_to(sources_dir):
+            return resolved.relative_to(kb.root.resolve()).as_posix()
+    raise LogArgumentError(f"--source '{source}' is not a file under sources/")
+
+
 def resolve_log_path(kb: KB) -> Path:
     """The KB's log file, migrating an uppercase LOG.md to log.md on touch."""
     existing = find_system_file(kb.root, "log.md")
@@ -108,7 +157,9 @@ def main() -> None:
         help="author identity (your name, or the agent id in org installations)",
     )
     parser.add_argument(
-        "--source", default=None, help="KB-relative source path (e.g. sources/foo.md)"
+        "--source",
+        default=None,
+        help="KB-relative source path (e.g. sources/foo.md); required for skip",
     )
     parser.add_argument(
         "--summary",
@@ -135,6 +186,13 @@ def main() -> None:
     try:
         kb = find_kb(args.kb)
     except KBError as exc:
+        sys.exit(f"error: {exc}")
+
+    try:
+        check_page_refs(kb, args)
+        if args.action == LogAction.SKIP:
+            args.source = normalize_skip_source(kb, args.source)
+    except LogArgumentError as exc:
         sys.exit(f"error: {exc}")
 
     log_path = resolve_log_path(kb)

@@ -1,6 +1,6 @@
 ---
 name: kmd-lint
-version: 0.3.0
+version: 0.3.1
 description: Health check for a markdown knowledge base (Obsidian-compatible, the LLM-wiki pattern) — personal or shared. Use whenever asked to lint, audit, check, review, or clean up a KB, on any scheduled hygiene/maintenance run, or when KB quality is in doubt (stale pages, contradictions, broken links, unprocessed sources, index drift). Drift is the KB's primary failure mode; if in doubt whether a lint pass is warranted, it is.
 ---
 
@@ -36,7 +36,8 @@ python3 scripts/lint_mechanical.py --kb <kb-root> --report --agent <your-name-or
 This checks: broken wikilinks, invalid/missing frontmatter (including the
 provenance rule), modified files under `sources/` (append-only violation,
 via git — when the KB is not under git the script says so explicitly rather
-than implying coverage), unreferenced sources (un-ingested intake), orphan
+than implying coverage), unreferenced sources (un-ingested intake; a
+`skip` log entry closes a source intake reviewed and declined), orphan
 pages, page updates with no LOG entry, oversized pages, and a missing or
 stale `index.md` (fix: `recompile_index.py` from kmd-ingest). With
 `--report` it writes a
@@ -87,7 +88,8 @@ Every finding ends in exactly one of two places (core protocol):
   doesn't have (which side of a contradiction is true, whether a merge loses
   nuance, whether a stale claim still holds): write it into the report's
   **Resolution** section as a concrete, actionable item for the KB owner.
-  Un-ingested sources are open items too — each is a pending ingest.
+  Un-ingested sources are open items too — each is a pending ingest, or a
+  `kb_log.py --action skip` once someone has reviewed and declined it.
 
 *Org installations route instead of recording* — judgment calls go to page
 authors' inboxes, intake to the owning agent. See

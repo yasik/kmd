@@ -411,27 +411,35 @@ def extract_wikilinks(text: str) -> list[str]:
     return [m.group(1).strip() for m in WIKILINK_RE.finditer(text)]
 
 
-def build_link_index(kb: KB) -> LinkIndex:
-    """Build the set of link keys every existing .md file answers to.
+def _link_keys(rel: Path) -> set[str]:
+    """Keys one file answers to under a given relative path.
 
-    Obsidian resolves [[target]] by basename or by relative path, with or
-    without the .md extension. Keys are registered relative to the workspace
-    AND relative to the KB root, lowercased, so both [[sources/x]] and
-    workspace-scoped links resolve.
+    Obsidian drops the extension only for markdown notes; attachments
+    (images, PDFs) are linked with theirs — `[[assets/chart.png]]`.
+    """
+    target = rel.with_suffix("") if rel.suffix == ".md" else rel
+    return {target.name.lower(), str(target).replace(os.sep, "/").lower()}
+
+
+def build_link_index(kb: KB) -> LinkIndex:
+    """Build the set of link keys every existing file answers to.
+
+    Obsidian resolves [[target]] by basename or by relative path — notes
+    without their .md extension, attachments with theirs. Keys are
+    registered relative to the workspace AND relative to the KB root,
+    lowercased, so both [[sources/x]] and workspace-scoped links resolve.
     """
     keys: LinkIndex = set()
 
-    for p in kb.workspace.rglob("*.md"):
+    for p in kb.workspace.rglob("*"):
         rel = p.relative_to(kb.workspace)
-        if _has_hidden_part(rel):
+        if _has_hidden_part(rel) or not p.is_file():
             continue
-        keys.add(p.stem.lower())
-        keys.add(str(rel.with_suffix("")).replace(os.sep, "/").lower())
+        keys |= _link_keys(rel)
         try:
-            kb_rel = p.relative_to(kb.root)
+            keys |= _link_keys(p.relative_to(kb.root))
         except ValueError:
             continue
-        keys.add(str(kb_rel.with_suffix("")).replace(os.sep, "/").lower())
 
     return keys
 
@@ -611,7 +619,13 @@ def _page_snippet(body: str, max_chars: int = 90) -> str:
         if not stripped or stripped.startswith("#"):
             continue
         if len(stripped) > max_chars:
-            return stripped[: max_chars - 1].rstrip() + "…"
+            cut = stripped[: max_chars - 1]
+            # Never end inside a [[wikilink]]: a half link is a broken link
+            # in index.md, which lint and Obsidian's graph then report.
+            opened = cut.rfind("[[")
+            if opened > cut.rfind("]]"):
+                cut = cut[:opened]
+            return cut.rstrip() + "…"
         return stripped
     return ""
 
@@ -663,16 +677,31 @@ def index_status(kb: KB) -> str:
     return "current"
 
 
+def _read_log(kb: KB) -> str:
+    log_path = find_system_file(kb.root, "log.md") or (kb.root / "log.md")
+    return log_path.read_text(encoding="utf-8") if log_path.exists() else ""
+
+
 def parse_log_dates(kb: KB) -> set[str]:
     """Dates (ISO strings) that have at least one log.md entry."""
-    log_path = find_system_file(kb.root, "log.md") or (kb.root / "log.md")
-    if not log_path.exists():
-        return set()
-    return set(
-        re.findall(
-            r"^##\s*\[(\d{4}-\d{2}-\d{2})\]", log_path.read_text(encoding="utf-8"), re.M
-        )
-    )
+    return set(re.findall(r"^##\s*\[(\d{4}-\d{2}-\d{2})\]", _read_log(kb), re.M))
+
+
+def parse_skipped_sources(kb: KB) -> set[str]:
+    """KB-relative source paths (lowercased) closed by a `skip` log entry.
+
+    A skip is the reviewed-and-declined outcome of intake: the source stays
+    in sources/ (append-only) but is no longer pending work. The decision
+    lives in the log because sources themselves can never be edited.
+    """
+    skipped: set[str] = set()
+    for entry in re.split(r"^(?=##\s*\[)", _read_log(kb), flags=re.M):
+        if not re.match(r"##\s*\[[\d-]+\]\s*skip\s*\|", entry):
+            continue
+        source = re.search(r"^- Source: `([^`]+)`", entry, re.M)
+        if source:
+            skipped.add(source.group(1).strip().lower())
+    return skipped
 
 
 def today_iso() -> str:

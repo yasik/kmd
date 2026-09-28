@@ -1,6 +1,6 @@
 ---
 name: kmd-ingest
-version: 0.3.0
+version: 0.3.1
 description: The write protocol for a markdown knowledge base (Obsidian-compatible, the LLM-wiki pattern) — personal or shared. Use for EVERY write into the KB — distilling a new or scraped source, promoting a finished artifact/report/lesson into the KB, filing a durable learning, insight, or query answer, or correcting/updating an existing page, even a one-line fix. If you are about to create or edit any file inside a knowledge base (a directory with schema.md/log.md, a .kmd.json config, or a kb/ folder), use this skill first; there is no free-form edit path to the KB.
 ---
 
@@ -168,7 +168,12 @@ python3 scripts/kb_log.py --kb <kb-root> --action ingest \
 Emits the canonical entry (header + Source/Summary/Pages/Key insight/By
 bullets — omit flags that don't apply). `--action edit` for small
 corrections; a batch drained in one sitting is one operation and one entry.
-Never write log.md by hand — lint checks the canonical format.
+Page flags (`--summary`, `--created`, `--updated`) take existing page titles
+or paths — the script rejects anything else, so prose goes in `--insight`.
+A source you reviewed and declined to ingest gets its own entry:
+`--action skip --source "sources/<file>.md" --title "<reason>"` — lint then
+stops reporting it as unreferenced. Never write log.md by hand — lint checks
+the canonical format.
 
 ### 9. Regenerate the index
 
