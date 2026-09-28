@@ -74,7 +74,8 @@ External-world claims point into `sources/`; internal artifacts point at
 their origin — another page, a dated note, the project or conversation that
 produced them. Reverse rule: every file in `sources/` must be referenced by
 at least one page — an unreferenced source is un-ingested intake work,
-surfaced by lint.
+surfaced by lint — unless intake reviewed and declined it, recorded as a
+`skip` log entry (the source stays; the decision lives in the log).
 
 ## Writing style
 

@@ -30,16 +30,17 @@ Locate the KB root the way the skills do: an explicit path from the task >
    rather than warrant a new one), condense — never mirror the source into a
    page — declare provenance, sweep cross-references, validate, log.
 4. **Verify the queue drained**: re-run the mechanical check; every source
-   you processed should no longer be flagged. Sources you routed away remain
-   flagged — that is correct; note them as handed off.
+   you processed or skipped should no longer be flagged. Sources you routed
+   away remain flagged — that is correct; note them as handed off.
 
 ## Judgment defaults
 
 - One source can feed several pages (an entity + a concept), and several
   sources can feed one page. The unit of work is the *knowledge*, not the file.
-- A source that is garbage (duplicate scrape, empty page) still gets resolved:
-  note it in a stub reference from the relevant page or flag it for the
-  owner's deletion in your report — never delete from `sources/` yourself.
+- A source not worth a page (duplicate scrape, empty page, promo, unreliable
+  summary) still gets resolved: log it with `kb_log.py --action skip
+  --source sources/<file>.md --title "<reason>"` — lint then stops flagging
+  it — and mention it in your report. Never delete from `sources/` yourself.
 
 ## Return format
 

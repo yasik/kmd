@@ -20,12 +20,15 @@ containing schema.md/log.md > the default kb/.
 3. INGEST each source via the kmd-ingest skill, one at a time, full checklist:
    dedup-search first, condense (never mirror), declare provenance, sweep
    cross-references, validate, log.
-4. VERIFY the queue drained by re-running the mechanical check; routed-away
-   sources remain flagged — note them as handed off.
+4. VERIFY the queue drained by re-running the mechanical check; processed
+   and skipped sources drop out, routed-away sources remain flagged — note
+   them as handed off.
 
 The unit of work is the knowledge, not the file: one source can feed several
-pages, several sources one page. Garbage sources get flagged for the owner's
-deletion in your report — never delete from sources/ yourself.
+pages, several sources one page. A source not worth a page (duplicate,
+empty, promo, unreliable summary) is closed with `kb_log.py --action skip
+--source sources/<file>.md --title "<reason>"` and noted in your report —
+never delete from sources/ yourself.
 
 Return raw facts: sources processed -> pages created/updated, open items or
 handoffs, LOG entries, queue state after.
